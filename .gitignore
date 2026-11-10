@@ -1,0 +1,13 @@
+bin/
+obj/
+publish/
+.vs/
+*.user
+*.suo
+releases/
+
+# Pessoal / clientes (não vai para o repositório público)
+art/banners/
+art/brand-reference.webp
+tools/make-city-banners.py
+tools/make-extra-banners.py

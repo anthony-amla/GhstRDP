@@ -1,0 +1,837 @@
+<Window x:Class="GhstRDP.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:GhstRDP.ViewModels"
+        xmlns:core="clr-namespace:GhstRDP.Core"
+        xmlns:views="clr-namespace:GhstRDP.Views"
+        xmlns:ui="clr-namespace:GhstRDP.Ui"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
+        Style="{StaticResource WindowBase}"
+        Title="Ghst RDP" Icon="/Assets/ghst.ico"
+        Width="1320" Height="820" MinWidth="960" MinHeight="600"
+        WindowStartupLocation="CenterScreen">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="40" ResizeBorderThickness="6" GlassFrameThickness="0,0,0,1" CornerRadius="0" UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
+    <Window.InputBindings>
+        <KeyBinding Key="N" Modifiers="Control" Command="{Binding AddServerCommand}" />
+        <KeyBinding Key="F5" Command="{Binding RefreshStatusCommand}" />
+        <KeyBinding Key="S" Modifiers="Control+Shift" Command="{Binding TogglePrivacyCommand}" />
+    </Window.InputBindings>
+
+    <Window.Resources>
+        <ItemsPanelTemplate x:Key="WrapPanelTemplate">
+            <WrapPanel />
+        </ItemsPanelTemplate>
+
+        <!-- Grade que preenche a largura toda (colunas iguais) -->
+        <ItemsPanelTemplate x:Key="CardGridTemplate">
+            <ui:AdaptiveGrid MinItemWidth="250" Spacing="14" />
+        </ItemsPanelTemplate>
+
+        <!-- Status: verde online, vermelho offline, azul com sessão aberta -->
+        <Style x:Key="StatusDot" TargetType="Ellipse">
+            <Setter Property="Width" Value="8" />
+            <Setter Property="Height" Value="8" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Fill" Value="{Binding Status, Converter={StaticResource StatusBrush}}" />
+            <Setter Property="ToolTip" Value="{Binding StatusTooltip}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HasOpenSession}" Value="True">
+                    <Setter Property="Fill" Value="{StaticResource SessionBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Chip de cliente no filtro (cor igual à etiqueta do card) -->
+        <Style x:Key="ClientChipButton" TargetType="Button">
+            <Setter Property="Margin" Value="0,0,8,8" />
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="Background" Value="{StaticResource ControlBrush}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="14" Padding="10,5,12,5">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource ControlHoverBrush}" />
+                    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                </Trigger>
+                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                    <Setter Property="Background" Value="{Binding TagBackground}" />
+                    <Setter Property="Foreground" Value="{Binding TagForeground}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <ContextMenu x:Key="ServerMenu" x:Shared="False">
+            <MenuItem Header="Conectar no Ghst" Tag="&#xE7F4;" Command="{Binding ConnectEmbeddedCommand}" />
+            <MenuItem Header="Abrir no mstsc" Tag="&#xE8A7;" Command="{Binding ConnectExternalCommand}" />
+            <Separator Style="{StaticResource MenuSep}" />
+            <MenuItem Header="Editar" Tag="&#xE70F;" Command="{Binding EditCommand}" />
+            <MenuItem Header="Duplicar" Tag="&#xE8C8;" Command="{Binding DuplicateCommand}" />
+            <MenuItem Tag="{Binding FavoriteGlyph}" Command="{Binding ToggleFavoriteCommand}">
+                <MenuItem.Style>
+                    <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                        <Setter Property="Header" Value="Adicionar aos favoritos" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Favorite}" Value="True">
+                                <Setter Property="Header" Value="Remover dos favoritos" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </MenuItem.Style>
+            </MenuItem>
+            <Separator Style="{StaticResource MenuSep}" />
+            <MenuItem Header="Copiar endereço" Tag="&#xE71B;" Command="{Binding CopyAddressCommand}" />
+            <MenuItem Header="Copiar usuário" Tag="&#xE77B;" Command="{Binding CopyUsernameCommand}" />
+            <MenuItem Header="Copiar senha" Tag="&#xE72E;" Command="{Binding CopyPasswordCommand}" />
+            <Separator Style="{StaticResource MenuSep}" />
+            <MenuItem Header="Remover" Tag="&#xE74D;" Foreground="{StaticResource DangerTextBrush}" Command="{Binding DeleteCommand}" />
+        </ContextMenu>
+
+        <!-- Card de servidor: largura vem da grade; a prévia acompanha a largura -->
+        <DataTemplate x:Key="ServerCard" DataType="{x:Type vm:ServerItemViewModel}">
+            <Button x:Name="Card" Style="{StaticResource Btn.Card}" Command="{Binding ConnectCommand}"
+                    ContextMenu="{StaticResource ServerMenu}" AutomationProperties.Name="{Binding Name}">
+                <StackPanel>
+                    <Border CornerRadius="8,8,0,0" Background="{StaticResource ThumbBrush}"
+                            Height="{Binding ActualWidth, ElementName=Card, Converter={StaticResource Ratio}, ConverterParameter=0.5}">
+                        <Grid>
+                            <Image Source="/Assets/ghst.png" Width="56" Height="56" Opacity="0.16" RenderOptions.BitmapScalingMode="HighQuality"
+                                   Visibility="{Binding ShowPlaceholder, Converter={StaticResource BoolToVis}}" />
+                            <!-- Banner: logo centralizada ou imagem cobrindo o card -->
+                            <Image Source="{Binding Banner}" Stretch="Uniform" Margin="22,16" RenderOptions.BitmapScalingMode="HighQuality"
+                                   Visibility="{Binding ShowBannerLogo, Converter={StaticResource BoolToVis}}" />
+                            <Border CornerRadius="8,8,0,0" Visibility="{Binding ShowBannerFill, Converter={StaticResource BoolToVis}}">
+                                <Border.Background>
+                                    <ImageBrush ImageSource="{Binding Banner}" Stretch="UniformToFill" />
+                                </Border.Background>
+                            </Border>
+                            <Border CornerRadius="8,8,0,0" Visibility="{Binding ShowThumbnail, Converter={StaticResource BoolToVis}}">
+                                <Border.Background>
+                                    <ImageBrush ImageSource="{Binding Thumbnail}" Stretch="UniformToFill" AlignmentY="Top" />
+                                </Border.Background>
+                            </Border>
+                            <Border CornerRadius="8,8,0,0" Visibility="{Binding ShowPixelThumbnail, Converter={StaticResource BoolToVis}}">
+                                <Border.Background>
+                                    <ImageBrush ImageSource="{Binding PixelThumbnail}" Stretch="UniformToFill" AlignmentY="Top" />
+                                </Border.Background>
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <Grid Margin="14,11,6,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Ellipse Style="{StaticResource StatusDot}" Margin="0,1,9,0" />
+                                <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                            <TextBlock Text="{Binding ShownAddress}" Style="{StaticResource Text.Address}" Margin="17,4,0,0" HorizontalAlignment="Left" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Style="{StaticResource Btn.Icon}" Width="28" Height="28" Content="&#xE712;" VerticalAlignment="Top"
+                                Margin="0,-4,0,0" Click="MoreButton_Click" ContextMenu="{StaticResource ServerMenu}"
+                                AutomationProperties.Name="Mais opções" ToolTip="Mais opções" />
+                    </Grid>
+
+                    <Border Height="1" Background="{StaticResource DividerBrush}" Margin="14,0" />
+                    <Grid Margin="14,9,14,11">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Style="{StaticResource TagChip}" Background="{Binding TagBackground}" MaxWidth="140"
+                                    Visibility="{Binding HasGroup, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="{Binding Group}" Style="{StaticResource TagChipText}" Foreground="{Binding TagForeground}" />
+                            </Border>
+                            <Border Style="{StaticResource TagChip}">
+                                <TextBlock Text="{Binding KindLabel}" Style="{StaticResource TagChipText}" />
+                            </Border>
+                        </StackPanel>
+                        <TextBlock Text="{Binding FooterStatus}" Style="{StaticResource Text.Mono}" FontSize="11.5"
+                                   Foreground="{StaticResource TextTertiaryBrush}" HorizontalAlignment="Right" />
+                    </Grid>
+                </StackPanel>
+            </Button>
+        </DataTemplate>
+
+        <!-- Linha (modo lista) -->
+        <DataTemplate x:Key="ServerRow" DataType="{x:Type vm:ServerItemViewModel}">
+            <Button Style="{StaticResource Btn.Row}" Height="42" Padding="10,0,2,0" Command="{Binding ConnectCommand}"
+                    ContextMenu="{StaticResource ServerMenu}" AutomationProperties.Name="{Binding Name}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="22" />
+                        <ColumnDefinition Width="2*" />
+                        <ColumnDefinition Width="1.4*" />
+                        <ColumnDefinition Width="1.2*" />
+                        <ColumnDefinition Width="1*" />
+                        <ColumnDefinition Width="90" />
+                        <ColumnDefinition Width="120" />
+                        <ColumnDefinition Width="36" />
+                    </Grid.ColumnDefinitions>
+                    <Ellipse Style="{StaticResource StatusDot}" HorizontalAlignment="Left" />
+                    <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,12,0" />
+                    <TextBlock Grid.Column="2" Text="{Binding ShownAddress}" Style="{StaticResource Text.Address}" Margin="0,0,12,0" HorizontalAlignment="Left" />
+                    <TextBlock Grid.Column="3" Text="{Binding UserDisplay}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,12,0"
+                               Foreground="{StaticResource TextSecondaryBrush}" />
+                    <Border Grid.Column="4" Style="{StaticResource TagChip}" Background="{Binding TagBackground}" HorizontalAlignment="Left"
+                            Visibility="{Binding HasGroup, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding Group}" Style="{StaticResource TagChipText}" Foreground="{Binding TagForeground}" />
+                    </Border>
+                    <Border Grid.Column="5" Style="{StaticResource TagChip}" HorizontalAlignment="Left">
+                        <TextBlock Text="{Binding KindLabel}" Style="{StaticResource TagChipText}" />
+                    </Border>
+                    <TextBlock Grid.Column="6" Text="{Binding LastConnectedText}" VerticalAlignment="Center" Foreground="{StaticResource TextTertiaryBrush}" />
+                    <Button Grid.Column="7" Style="{StaticResource Btn.Icon}" Content="&#xE712;" Click="MoreButton_Click"
+                            ContextMenu="{StaticResource ServerMenu}" AutomationProperties.Name="Mais opções" ToolTip="Mais opções" />
+                </Grid>
+            </Button>
+        </DataTemplate>
+
+        <Style x:Key="ViewToggle" TargetType="Button" BasedOn="{StaticResource Btn.Icon}">
+            <Setter Property="Width" Value="34" />
+        </Style>
+    </Window.Resources>
+
+    <Grid x:Name="Root">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="40" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- ================= Barra de título ================= -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                <Button Style="{StaticResource Btn.Icon}" Width="40" Height="32" Content="&#xE700;" FontSize="13"
+                        Command="{Binding ToggleNavCommand}" WindowChrome.IsHitTestVisibleInChrome="True"
+                        AutomationProperties.Name="Menu" ToolTip="Recolher / expandir o menu" />
+                <Image Source="/Assets/ghst.png" Width="20" Height="20" Margin="8,0,8,0" RenderOptions.BitmapScalingMode="HighQuality" />
+                <TextBlock Text="Ghst RDP" FontSize="12" VerticalAlignment="Center" />
+            </StackPanel>
+
+            <!-- Aviso rápido: na barra de título para nunca ficar atrás da sessão RDP -->
+            <TextBlock Grid.Column="1" Text="{Binding ToastText}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Visibility="{Binding IsToastVisible, Converter={StaticResource BoolToVis}}" />
+
+            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
+                <!-- Atualização baixada: reinicia para trocar a versão -->
+                <Button Style="{StaticResource Btn.Primary}" Height="26" MinHeight="0" Padding="10,0" Margin="0,7,10,0" FontSize="12"
+                        WindowChrome.IsHitTestVisibleInChrome="True" Command="{Binding Update.RestartNowCommand}"
+                        Visibility="{Binding Update.IsReady, Converter={StaticResource BoolToVis}}"
+                        ToolTip="A versão nova também entra sozinha quando você fechar o app">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE896;" FontFamily="{StaticResource IconFont}" FontSize="11" VerticalAlignment="Center" Margin="0,0,7,0" />
+                        <TextBlock>
+                            <Run Text="Atualizar para" /><Run Text=" " /><Run Text="{Binding Update.ReadyVersion, Mode=OneWay}" />
+                        </TextBlock>
+                    </StackPanel>
+                </Button>
+                <Button WindowChrome.IsHitTestVisibleInChrome="True" Command="{Binding TogglePrivacyCommand}" Margin="0,0,6,0"
+                        AutomationProperties.Name="Modo sigiloso">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource Btn.Caption}">
+                            <Setter Property="Content" Value="&#xE7B3;" />
+                            <Setter Property="FontSize" Value="13" />
+                            <Setter Property="ToolTip" Value="Modo sigiloso: esconder IPs (Ctrl+Shift+S)" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding PrivacyMode}" Value="True">
+                                    <Setter Property="Content" Value="&#xED1A;" />
+                                    <Setter Property="Foreground" Value="{StaticResource AccentTextBrush}" />
+                                    <Setter Property="ToolTip" Value="Modo sigiloso ligado: IPs ocultos (Ctrl+Shift+S)" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <Button x:Name="MinButton" Style="{StaticResource Btn.Caption}" Content="&#xE921;" Click="Minimize_Click"
+                        WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Minimizar" />
+                <Button x:Name="MaxButton" Style="{StaticResource Btn.Caption}" Content="&#xE922;" Click="Maximize_Click"
+                        WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Maximizar" />
+                <Button x:Name="CloseButton" Style="{StaticResource Btn.CaptionClose}" Content="&#xE8BB;" Click="Close_Click"
+                        WindowChrome.IsHitTestVisibleInChrome="True" AutomationProperties.Name="Fechar" />
+            </StackPanel>
+        </Grid>
+
+        <!-- ================= Corpo ================= -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Navegação -->
+            <Border>
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Width" Value="210" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsNavExpanded}" Value="False">
+                                <Setter Property="Width" Value="60" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+
+                <DockPanel Margin="8,4,8,8" LastChildFill="False">
+                    <StackPanel DockPanel.Dock="Top">
+                        <RadioButton Style="{StaticResource Nav.Item}" GroupName="nav" AutomationProperties.Name="Servidores"
+                                     IsChecked="{Binding CurrentPage, Converter={StaticResource EnumBool}, ConverterParameter=Servidores}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE977;" Style="{StaticResource Text.Icon}" Width="20" />
+                                <TextBlock Text="Servidores" Margin="12,0,0,0" VerticalAlignment="Center"
+                                           Visibility="{Binding IsNavExpanded, Converter={StaticResource BoolToVis}}" />
+                            </StackPanel>
+                        </RadioButton>
+
+                        <RadioButton Style="{StaticResource Nav.Item}" GroupName="nav" AutomationProperties.Name="Sessões"
+                                     IsChecked="{Binding CurrentPage, Converter={StaticResource EnumBool}, ConverterParameter=Sessoes}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="&#xE7C4;" Style="{StaticResource Text.Icon}" Width="20" />
+                                <Grid Grid.Column="1" Visibility="{Binding IsNavExpanded, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="Sessões" Margin="12,0,0,0" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding SessionCount}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
+                                               HorizontalAlignment="Right" VerticalAlignment="Center"
+                                               Visibility="{Binding SessionCount, Converter={StaticResource CountToVis}}" />
+                                </Grid>
+                            </Grid>
+                        </RadioButton>
+
+                        <RadioButton Style="{StaticResource Nav.Item}" GroupName="nav" AutomationProperties.Name="Senhas"
+                                     IsChecked="{Binding CurrentPage, Converter={StaticResource EnumBool}, ConverterParameter=Senhas}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE8D7;" Style="{StaticResource Text.Icon}" Width="20" />
+                                <TextBlock Text="Senhas" Margin="12,0,0,0" VerticalAlignment="Center"
+                                           Visibility="{Binding IsNavExpanded, Converter={StaticResource BoolToVis}}" />
+                            </StackPanel>
+                        </RadioButton>
+                    </StackPanel>
+
+                    <RadioButton DockPanel.Dock="Bottom" Style="{StaticResource Nav.Item}" GroupName="nav" AutomationProperties.Name="Configurações"
+                                 IsChecked="{Binding CurrentPage, Converter={StaticResource EnumBool}, ConverterParameter=Configuracoes}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE713;" Style="{StaticResource Text.Icon}" Width="20" />
+                            <TextBlock Text="Configurações" Margin="12,0,0,0" VerticalAlignment="Center"
+                                       Visibility="{Binding IsNavExpanded, Converter={StaticResource BoolToVis}}" />
+                        </StackPanel>
+                    </RadioButton>
+                </DockPanel>
+            </Border>
+
+            <!-- Conteúdo -->
+            <Border Grid.Column="1" Background="{StaticResource LayerBrush}" CornerRadius="8,0,0,0">
+                <Grid>
+
+                    <!-- ============ SERVIDORES ============ -->
+                    <Grid Margin="28,22,12,0" Visibility="{Binding CurrentPage, Converter={StaticResource EnumVis}, ConverterParameter=Servidores}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Título e ações -->
+                        <Grid Margin="0,0,16,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Servidores" Style="{StaticResource Text.Title}" />
+                                <TextBlock Text="{Binding ResultText}" FontSize="13" Foreground="{StaticResource TextTertiaryBrush}"
+                                           VerticalAlignment="Bottom" Margin="14,0,0,6" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <Button Content="&#xF0E2;" Command="{Binding ShowGridCommand}" ToolTip="Blocos" AutomationProperties.Name="Blocos">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource ViewToggle}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsListView}" Value="False">
+                                                    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                                                    <Setter Property="Background" Value="{StaticResource ControlBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Content="&#xE8FD;" Command="{Binding ShowListCommand}" ToolTip="Lista" AutomationProperties.Name="Lista" Margin="2,0,0,0">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource ViewToggle}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsListView}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                                                    <Setter Property="Background" Value="{StaticResource ControlBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Style="{StaticResource Btn.Primary}" Command="{Binding AddServerCommand}" Margin="12,0,0,0"
+                                        AutomationProperties.Name="Adicionar servidor" ToolTip="Ctrl+N">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE710;" FontFamily="{StaticResource IconFont}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <TextBlock Text="Adicionar" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Filtros: busca, tipo, status, favoritos -->
+                        <WrapPanel Grid.Row="1" Margin="0,18,16,10" Visibility="{Binding HasServers, Converter={StaticResource BoolToVis}}">
+                            <TextBox x:Name="SearchBox" Style="{StaticResource TextBox.Search}" Width="300" Margin="0,0,12,8"
+                                     Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" Tag="Buscar nome, IP, usuário…  (Ctrl+K)" />
+
+                            <Border Style="{StaticResource SegmentBar}" Margin="0,0,12,8">
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton Style="{StaticResource Segment}" GroupName="tipo" Content="Todos"
+                                                 IsChecked="{Binding TypeFilter, Converter={StaticResource EnumBool}, ConverterParameter=Todos}" />
+                                    <RadioButton Style="{StaticResource Segment}" GroupName="tipo" Content="VPS"
+                                                 Visibility="{Binding HasVps, Converter={StaticResource BoolToVis}}"
+                                                 IsChecked="{Binding TypeFilter, Converter={StaticResource EnumBool}, ConverterParameter=Vps}" />
+                                    <RadioButton Style="{StaticResource Segment}" GroupName="tipo" Content="Dedicados"
+                                                 Visibility="{Binding HasDedicado, Converter={StaticResource BoolToVis}}"
+                                                 IsChecked="{Binding TypeFilter, Converter={StaticResource EnumBool}, ConverterParameter=Dedicado}" />
+                                    <RadioButton Style="{StaticResource Segment}" GroupName="tipo" Content="Outros"
+                                                 Visibility="{Binding HasOutro, Converter={StaticResource BoolToVis}}"
+                                                 IsChecked="{Binding TypeFilter, Converter={StaticResource EnumBool}, ConverterParameter=Outro}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource SegmentBar}" Margin="0,0,12,8">
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton Style="{StaticResource Segment}" GroupName="status" Content="Todos"
+                                                 IsChecked="{Binding StatusFilter, Converter={StaticResource EnumBool}, ConverterParameter=Todos}" />
+                                    <RadioButton Style="{StaticResource Segment}" GroupName="status" AutomationProperties.Name="Online"
+                                                 IsChecked="{Binding StatusFilter, Converter={StaticResource EnumBool}, ConverterParameter=Online}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="7" Height="7" Fill="{StaticResource SuccessBrush}" Margin="0,0,7,0" VerticalAlignment="Center" />
+                                            <TextBlock Text="Online" />
+                                        </StackPanel>
+                                    </RadioButton>
+                                    <RadioButton Style="{StaticResource Segment}" GroupName="status" AutomationProperties.Name="Offline"
+                                                 IsChecked="{Binding StatusFilter, Converter={StaticResource EnumBool}, ConverterParameter=Offline}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="7" Height="7" Fill="{StaticResource DangerBrush}" Margin="0,0,7,0" VerticalAlignment="Center" />
+                                            <TextBlock Text="Offline" />
+                                        </StackPanel>
+                                    </RadioButton>
+                                </StackPanel>
+                            </Border>
+
+                            <Button Command="{Binding ToggleFavoritesOnlyCommand}" Margin="0,0,12,8" Height="36" AutomationProperties.Name="Só favoritos">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource Btn.Secondary}">
+                                        <Setter Property="ToolTip" Value="Mostrar só os favoritos" />
+                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding FavoritesOnly}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource AccentTextBrush}" />
+                                                <Setter Property="Background" Value="#22324A" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE735;" FontFamily="{StaticResource IconFont}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <TextBlock Text="Favoritos" />
+                                </StackPanel>
+                            </Button>
+
+                            <Button Style="{StaticResource Btn.Link}" Content="Limpar filtros" FontSize="12.5" Margin="2,0,0,8" VerticalAlignment="Center"
+                                    Command="{Binding ClearFiltersCommand}" Visibility="{Binding HasActiveFilter, Converter={StaticResource BoolToVis}}" />
+                        </WrapPanel>
+
+                        <!-- Clientes -->
+                        <ItemsControl Grid.Row="2" ItemsSource="{Binding Clients}" ItemsPanel="{StaticResource WrapPanelTemplate}" Margin="0,0,16,8"
+                                      Visibility="{Binding HasClients, Converter={StaticResource BoolToVis}}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:ClientFilter}">
+                                    <Button Style="{StaticResource ClientChipButton}" AutomationProperties.Name="{Binding Name}" ToolTip="Filtrar por cliente (clique de novo para limpar)"
+                                            Command="{Binding DataContext.ToggleClientCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding Name}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="8" Height="8" Fill="{Binding Dot}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12.5" />
+                                            <TextBlock Text="{Binding Count}" FontSize="12" Margin="8,0,0,0" Opacity="0.65" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Lista / grade -->
+                        <Grid Grid.Row="3">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                          Visibility="{Binding IsListView, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                                <ItemsControl ItemsSource="{Binding ServersView}" ItemTemplate="{StaticResource ServerCard}"
+                                              ItemsPanel="{StaticResource CardGridTemplate}" Margin="0,6,16,24" />
+                            </ScrollViewer>
+
+                            <DockPanel Visibility="{Binding IsListView, Converter={StaticResource BoolToVis}}" Margin="0,6,16,0">
+                                <Grid DockPanel.Dock="Top" Margin="10,0,2,6" TextElement.Foreground="{StaticResource TextTertiaryBrush}"
+                                      TextElement.FontSize="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="22" />
+                                        <ColumnDefinition Width="2*" />
+                                        <ColumnDefinition Width="1.4*" />
+                                        <ColumnDefinition Width="1.2*" />
+                                        <ColumnDefinition Width="1*" />
+                                        <ColumnDefinition Width="90" />
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="36" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="1" Text="Nome" />
+                                    <TextBlock Grid.Column="2" Text="Endereço" />
+                                    <TextBlock Grid.Column="3" Text="Usuário" />
+                                    <TextBlock Grid.Column="4" Text="Cliente" />
+                                    <TextBlock Grid.Column="5" Text="Tipo" />
+                                    <TextBlock Grid.Column="6" Text="Último acesso" />
+                                </Grid>
+                                <Border DockPanel.Dock="Top" Height="1" Background="{StaticResource DividerBrush}" Margin="0,0,0,4" />
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding ServersView}" ItemTemplate="{StaticResource ServerRow}" Margin="0,0,0,24" />
+                                </ScrollViewer>
+                            </DockPanel>
+
+                            <!-- Filtro sem resultado -->
+                            <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,16,0,0" Orientation="Horizontal">
+                                <StackPanel.Visibility>
+                                    <MultiBinding Converter="{StaticResource AllTrueToVis}">
+                                        <Binding Path="HasServers" />
+                                        <Binding Path="FilteredCount" Converter="{StaticResource IsZero}" />
+                                    </MultiBinding>
+                                </StackPanel.Visibility>
+                                <TextBlock Text="Nenhum servidor com esses filtros." Style="{StaticResource Text.Caption}" FontSize="13" VerticalAlignment="Center" />
+                                <Button Style="{StaticResource Btn.Link}" Content="Limpar filtros" Margin="10,0,0,0" Command="{Binding ClearFiltersCommand}" />
+                            </StackPanel>
+
+                            <!-- Primeiro uso -->
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,80"
+                                        Visibility="{Binding HasServers, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
+                                <Image Source="/Assets/ghst.png" Width="64" Height="64" Opacity="0.9" RenderOptions.BitmapScalingMode="HighQuality" />
+                                <TextBlock Text="Nenhum servidor ainda" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,18,0,6" />
+                                <TextBlock Text="Cadastre uma VPS ou dedicado para conectar com um clique." Style="{StaticResource Text.Caption}"
+                                           FontSize="13" HorizontalAlignment="Center" />
+                                <Button Style="{StaticResource Btn.Primary}" Content="Adicionar servidor" Command="{Binding AddServerCommand}"
+                                        HorizontalAlignment="Center" Margin="0,20,0,0" AutomationProperties.Name="Adicionar servidor" />
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+
+                    <!-- ============ SESSÕES ============ -->
+                    <!-- Hidden (não Collapsed): as sessões continuam vivas e com o mesmo tamanho ao trocar de página -->
+                    <Grid Visibility="{Binding CurrentPage, Converter={StaticResource EnumVisHidden}, ConverterParameter=Sessoes}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Abas + ações da sessão ativa, numa linha só (sem barra extra roubando altura) -->
+                        <Grid Margin="8,6,8,0" Visibility="{Binding HasSessions, Converter={StaticResource BoolToVis}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <ListBox ItemsSource="{Binding Sessions}" SelectedItem="{Binding SelectedSession}" ItemContainerStyle="{StaticResource BrowserTab}"
+                                     Background="Transparent" BorderThickness="0" PreviewMouseUp="SessionTabs_PreviewMouseUp">
+                                <ListBox.Template>
+                                    <ControlTemplate TargetType="ListBox">
+                                        <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" Focusable="False">
+                                            <StackPanel Orientation="Horizontal">
+                                                <ItemsPresenter />
+                                                <Button Style="{StaticResource Btn.Icon}" Width="30" Height="30" Margin="4,0,0,2" FontSize="12" Content="&#xE710;"
+                                                        VerticalAlignment="Center" ToolTip="Nova conexão" AutomationProperties.Name="Nova conexão"
+                                                        Command="{Binding DataContext.GoToCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{x:Static vm:Page.Servidores}" />
+                                            </StackPanel>
+                                        </ScrollViewer>
+                                    </ControlTemplate>
+                                </ListBox.Template>
+                                <ListBox.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ListBox.ItemsPanel>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:SessionViewModel}">
+                                        <Grid ToolTip="{Binding Server.DisplayAddress}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Center">
+                                                <TextBlock Text="&#xE7F4;" FontFamily="{StaticResource IconFont}" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           Visibility="{Binding ShowTabIcon, Converter={StaticResource BoolToVis}}" />
+                                                <ContentControl Style="{StaticResource Spinner}" Visibility="{Binding ShowTabSpinner, Converter={StaticResource BoolToVis}}" />
+                                                <TextBlock Text="&#xE7BA;" FontFamily="{StaticResource IconFont}" FontSize="13" Foreground="{StaticResource DangerTextBrush}"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           Visibility="{Binding IsError, Converter={StaticResource BoolToVis}}" />
+                                            </Grid>
+                                            <Border Grid.Column="1" Style="{StaticResource TagChip}" Background="{Binding Server.TagBackground}" MaxWidth="80"
+                                                    Visibility="{Binding Server.HasGroup, Converter={StaticResource BoolToVis}}">
+                                                <TextBlock Text="{Binding Server.Group}" Style="{StaticResource TagChipText}" Foreground="{Binding Server.TagForeground}" />
+                                            </Border>
+                                            <TextBlock Grid.Column="2" Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                            <Button Grid.Column="3" Style="{StaticResource TabClose}" Content="&#xE8BB;" Margin="4,0,0,0"
+                                                    Command="{Binding CloseCommand}" ToolTip="Fechar (botão do meio do mouse também fecha)" AutomationProperties.Name="Fechar aba" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,2" DataContext="{Binding SelectedSession}">
+                                <Button Style="{StaticResource Btn.Icon}" Width="30" Height="30" Content="&#xE72C;" Command="{Binding ReconnectCommand}" ToolTip="Reconectar" />
+                                <Button Style="{StaticResource Btn.Icon}" Width="30" Height="30" Content="&#xE740;" Command="{Binding FullScreenCommand}" ToolTip="Tela cheia" />
+                                <Button Style="{StaticResource Btn.Icon}" Width="30" Height="30" Content="&#xE8A7;" Command="{Binding OpenExternalCommand}" ToolTip="Abrir no mstsc" />
+                                <Button Style="{StaticResource Btn.Icon}" Width="30" Height="30" Content="&#xE70F;" Command="{Binding EditCommand}" ToolTip="Editar servidor" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- A aba ativa emenda nesta linha da mesma cor -->
+                        <Border Grid.Row="1" Height="3" VerticalAlignment="Top" Background="{StaticResource TabActiveBrush}"
+                                Visibility="{Binding HasSessions, Converter={StaticResource BoolToVis}}" />
+                        <Grid x:Name="SessionHost" Grid.Row="1" Margin="0,3,0,0" />
+
+                        <StackPanel Grid.RowSpan="2" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                    Visibility="{Binding SessionCount, Converter={StaticResource CountToVis}, ConverterParameter=invert}">
+                            <TextBlock Text="Nenhuma sessão aberta" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                            <Button Style="{StaticResource Btn.Link}" Content="Ver servidores" HorizontalAlignment="Center" Margin="0,8,0,0"
+                                    Command="{Binding GoToCommand}" CommandParameter="{x:Static vm:Page.Servidores}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- ============ SENHAS (cofre com PIN) ============ -->
+                    <views:VaultView DataContext="{Binding Vault}"
+                                     Visibility="{Binding DataContext.CurrentPage, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource EnumVis}, ConverterParameter=Senhas}" />
+
+                    <!-- ============ CONFIGURAÇÕES ============ -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  Visibility="{Binding CurrentPage, Converter={StaticResource EnumVis}, ConverterParameter=Configuracoes}">
+                        <StackPanel Margin="32,24,28,32" MaxWidth="860" HorizontalAlignment="Left">
+                            <TextBlock Text="Configurações" Style="{StaticResource Text.Title}" Margin="0,0,0,20" />
+
+                            <TextBlock Text="Conexão" Style="{StaticResource Text.Section}" Margin="0,0,0,8" />
+
+                            <Border Style="{StaticResource SettingCard}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="36" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="&#xE8A7;" Style="{StaticResource Text.Icon}" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="Abrir servidores" />
+                                        <TextBlock Text="Cada servidor pode usar outro modo no cadastro." Style="{StaticResource Text.Caption}" />
+                                    </StackPanel>
+                                    <ComboBox Grid.Column="2" Width="220" VerticalAlignment="Center" SelectedValuePath="Tag"
+                                              SelectedValue="{Binding DefaultOpenMode}">
+                                        <ComboBoxItem Content="No Ghst, em abas" Tag="{x:Static core:OpenMode.Embutido}" />
+                                        <ComboBoxItem Content="No mstsc" Tag="{x:Static core:OpenMode.Externo}" />
+                                    </ComboBox>
+                                </Grid>
+                            </Border>
+
+                            <Border Style="{StaticResource SettingCard}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="36" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="&#xE765;" Style="{StaticResource Text.Icon}" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="Atalhos do Windows" />
+                                        <TextBlock Text="Alt+Tab, tecla Windows e similares." Style="{StaticResource Text.Caption}" />
+                                    </StackPanel>
+                                    <ComboBox Grid.Column="2" Width="220" VerticalAlignment="Center" SelectedValuePath="Tag"
+                                              SelectedValue="{Binding WinKeys}">
+                                        <ComboBoxItem Content="No servidor em tela cheia" Tag="{x:Static core:WinKeysMode.SomenteTelaCheia}" />
+                                        <ComboBoxItem Content="Sempre no servidor" Tag="{x:Static core:WinKeysMode.Sempre}" />
+                                        <ComboBoxItem Content="Sempre neste PC" Tag="{x:Static core:WinKeysMode.Nunca}" />
+                                    </ComboBox>
+                                </Grid>
+                            </Border>
+
+                            <Border Style="{StaticResource SettingCard}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="36" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="&#xE740;" Style="{StaticResource Text.Icon}" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="Usar a escala do Windows no servidor" />
+                                        <TextBlock Text="Textos no mesmo tamanho que neste PC." Style="{StaticResource Text.Caption}" />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="2" Style="{StaticResource Toggle}" IsChecked="{Binding MatchWindowsScale}" />
+                                </Grid>
+                            </Border>
+
+                            <TextBlock Text="Lista" Style="{StaticResource Text.Section}" Margin="0,20,0,8" />
+
+                            <Border Style="{StaticResource SettingCard}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="36" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="&#xED1A;" Style="{StaticResource Text.Icon}" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="Modo sigiloso" />
+                                        <TextBlock Text="Borra os IPs na tela (só aparecem ao editar) e as prévias. Atalho: Ctrl+Shift+S."
+                                                   Style="{StaticResource Text.Caption}" />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="2" Style="{StaticResource Toggle}" IsChecked="{Binding PrivacyMode}" />
+                                </Grid>
+                            </Border>
+
+                            <Border Style="{StaticResource SettingCard}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="36" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="&#xE701;" Style="{StaticResource Text.Icon}" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="Mostrar se está online" />
+                                        <TextBlock Text="Testa a porta RDP a cada 30 segundos." Style="{StaticResource Text.Caption}" />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="2" Style="{StaticResource Toggle}" IsChecked="{Binding StatusCheck}" />
+                                </Grid>
+                            </Border>
+
+                            <Border Style="{StaticResource SettingCard}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="36" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="&#xEB9F;" Style="{StaticResource Text.Icon}" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="Prévia da última tela" />
+                                        <TextBlock Text="Fica salva só neste PC." Style="{StaticResource Text.Caption}" />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="2" Style="{StaticResource Toggle}" IsChecked="{Binding ThumbnailsEnabled}" />
+                                </Grid>
+                            </Border>
+
+                            <TextBlock Text="Atualizações" Style="{StaticResource Text.Section}" Margin="0,20,0,8" />
+
+                            <Border Style="{StaticResource SettingCard}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="36" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="&#xE895;" Style="{StaticResource Text.Icon}" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="Atualizar automaticamente" />
+                                        <TextBlock Text="Baixa a versão nova do GitHub, confere a assinatura (SHA-256) e troca quando você fechar o app."
+                                                   Style="{StaticResource Text.Caption}" />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="2" Style="{StaticResource Toggle}" IsChecked="{Binding Update.AutoUpdate}" />
+                                </Grid>
+                            </Border>
+
+                            <Border Style="{StaticResource SettingCard}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="36" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="&#xE946;" Style="{StaticResource Text.Icon}" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock>
+                                            <Run Text="Versão" /><Run Text=" " /><Run Text="{Binding Update.CurrentVersion, Mode=OneWay}" />
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding Update.Status}" Style="{StaticResource Text.Caption}"
+                                                   Visibility="{Binding Update.Status, Converter={StaticResource TextToVis}}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button Style="{StaticResource Btn.Secondary}" Content="Procurar agora" Command="{Binding Update.CheckNowCommand}" Margin="0,0,6,0" />
+                                        <Button Style="{StaticResource Btn.Secondary}" Content="Ver versões" Command="{Binding Update.OpenReleasesCommand}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <TextBlock Text="Dados" Style="{StaticResource Text.Section}" Margin="0,20,0,8" />
+
+                            <Border Style="{StaticResource SettingCard}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="36" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="&#xE72E;" Style="{StaticResource Text.Icon}" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="Senhas" />
+                                        <TextBlock Text="Criptografadas pelo Windows (DPAPI). O cofre da aba Senhas usa também o seu PIN."
+                                                   Style="{StaticResource Text.Caption}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <Border Style="{StaticResource SettingCard}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="36" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="&#xE8B7;" Style="{StaticResource Text.Icon}" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="Pasta de dados" />
+                                        <TextBlock Text="{Binding DataFolder}" Style="{StaticResource Text.Caption}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button Style="{StaticResource Btn.Secondary}" Content="Abrir" Command="{Binding OpenDataFolderCommand}" Margin="0,0,6,0" />
+                                        <Button Style="{StaticResource Btn.Secondary}" Content="Logs" Command="{Binding OpenLogsFolderCommand}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <TextBlock Margin="0,20,0,0" Style="{StaticResource Text.Caption}" Foreground="{StaticResource TextTertiaryBrush}">
+                                <Run Text="Ghst RDP" /><Run Text=" " /><Run Text="{Binding AppVersion, Mode=OneWay}" />
+                            </TextBlock>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

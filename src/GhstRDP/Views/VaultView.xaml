@@ -1,0 +1,209 @@
+<UserControl x:Class="GhstRDP.Views.VaultView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:GhstRDP.ViewModels"
+             xmlns:ui="clr-namespace:GhstRDP.Ui"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:VaultViewModel}">
+    <Grid>
+
+        <!-- ============ Primeiro uso: criar PIN ============ -->
+        <Border Width="400" HorizontalAlignment="Center" VerticalAlignment="Center" Background="{StaticResource SurfaceBrush}"
+                CornerRadius="8" Padding="28,26"
+                Visibility="{Binding State, Converter={StaticResource EnumVis}, ConverterParameter=Configurar}">
+            <StackPanel>
+                <TextBlock Text="&#xE72E;" FontFamily="{StaticResource IconFont}" FontSize="24" Foreground="{StaticResource AccentTextBrush}" />
+                <TextBlock Text="Crie um PIN para o cofre" FontSize="18" FontWeight="SemiBold" Margin="0,14,0,6" />
+                <TextBlock Style="{StaticResource Text.Caption}" FontSize="13" LineHeight="19"
+                           Text="O PIN protege as senhas guardadas aqui e as senhas dos servidores. Use de 4 a 12 números. Se esquecer, o cofre precisa ser apagado." />
+                <TextBlock Text="PIN" Style="{StaticResource Text.Label}" Margin="0,18,0,6" />
+                <PasswordBox x:Name="NewPin" FontSize="16" MaxLength="12" KeyDown="Setup_KeyDown" AutomationProperties.Name="Novo PIN" />
+                <TextBlock Text="Repita o PIN" Style="{StaticResource Text.Label}" Margin="0,12,0,6" />
+                <PasswordBox x:Name="ConfirmPin" FontSize="16" MaxLength="12" KeyDown="Setup_KeyDown" AutomationProperties.Name="Repita o PIN" />
+                <TextBlock Text="{Binding Error}" Foreground="{StaticResource DangerTextBrush}" Margin="0,10,0,0" TextWrapping="Wrap"
+                           Visibility="{Binding Error, Converter={StaticResource TextToVis}}" />
+                <Button Style="{StaticResource Btn.Primary}" Content="Criar PIN" Margin="0,18,0,0" HorizontalAlignment="Stretch"
+                        Click="Setup_Click" IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBool}}" />
+            </StackPanel>
+        </Border>
+
+        <!-- ============ Bloqueado ============ -->
+        <Border Width="360" HorizontalAlignment="Center" VerticalAlignment="Center" Background="{StaticResource SurfaceBrush}"
+                CornerRadius="8" Padding="28,26"
+                Visibility="{Binding State, Converter={StaticResource EnumVis}, ConverterParameter=Bloqueado}">
+            <StackPanel>
+                <TextBlock Text="&#xE72E;" FontFamily="{StaticResource IconFont}" FontSize="24" Foreground="{StaticResource AccentTextBrush}" />
+                <TextBlock Text="Senhas bloqueadas" FontSize="18" FontWeight="SemiBold" Margin="0,14,0,6" />
+                <TextBlock Text="Digite seu PIN para ver as senhas." Style="{StaticResource Text.Caption}" FontSize="13" />
+                <PasswordBox x:Name="UnlockPin" FontSize="16" MaxLength="12" Margin="0,16,0,0" KeyDown="Unlock_KeyDown"
+                             AutomationProperties.Name="PIN do cofre" />
+                <TextBlock Text="{Binding Error}" Foreground="{StaticResource DangerTextBrush}" Margin="0,10,0,0" TextWrapping="Wrap"
+                           Visibility="{Binding Error, Converter={StaticResource TextToVis}}" />
+                <Button Style="{StaticResource Btn.Primary}" Content="Desbloquear" Margin="0,16,0,0" HorizontalAlignment="Stretch"
+                        Click="Unlock_Click" IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBool}}" />
+                <Button Style="{StaticResource Btn.Link}" Content="Esqueci o PIN" HorizontalAlignment="Center" Margin="0,14,0,0"
+                        FontSize="12" Command="{Binding ForgotPinCommand}" />
+            </StackPanel>
+        </Border>
+
+        <!-- ============ Aberto: um card por máquina ============ -->
+        <Grid Margin="28,22,12,0" Visibility="{Binding State, Converter={StaticResource EnumVis}, ConverterParameter=Aberto}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid Margin="0,0,16,0">
+                <TextBlock Text="Senhas" Style="{StaticResource Text.Title}" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button Style="{StaticResource Btn.Secondary}" Command="{Binding LockCommand}" Margin="0,0,8,0" AutomationProperties.Name="Bloquear cofre"
+                            ToolTip="Fecha o cofre (fecha sozinho após 5 min sem uso)">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE72E;" FontFamily="{StaticResource IconFont}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock Text="Bloquear" />
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource Btn.Primary}" Command="{Binding AddCommand}" AutomationProperties.Name="Adicionar senha">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE710;" FontFamily="{StaticResource IconFont}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock Text="Adicionar senha" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <TextBox Grid.Row="1" Style="{StaticResource TextBox.Search}" Width="320" HorizontalAlignment="Left" Margin="0,18,0,16"
+                     Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" Tag="Buscar máquina, rótulo ou usuário" />
+
+            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                <Grid Margin="0,0,16,24">
+                    <TextBlock Text="Nenhuma senha encontrada. Use &quot;Adicionar senha&quot; ou salve usuário e senha no cadastro do servidor."
+                               Style="{StaticResource Text.Caption}" FontSize="13"
+                               Visibility="{Binding HasGroups, Converter={StaticResource BoolToVis}, ConverterParameter=invert}" />
+
+                    <ItemsControl ItemsSource="{Binding Groups}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <ui:AdaptiveGrid MinItemWidth="330" Spacing="14" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:VaultGroupViewModel}">
+                                <Border Background="{StaticResource SurfaceBrush}" CornerRadius="8">
+                                    <StackPanel>
+                                        <!-- Cabeçalho: máquina + cliente -->
+                                        <Grid Margin="16,13,10,11">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="&#xE7F4;" FontFamily="{StaticResource IconFont}" FontSize="15" Foreground="{StaticResource TextSecondaryBrush}"
+                                                       VerticalAlignment="Center" Margin="0,0,10,0" />
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"
+                                                           TextTrimming="CharacterEllipsis" MaxWidth="200" />
+                                                <Border Style="{StaticResource TagChip}" Background="{Binding TagBackground}"
+                                                        Visibility="{Binding HasClient, Converter={StaticResource BoolToVis}}">
+                                                    <TextBlock Text="{Binding Client}" Style="{StaticResource TagChipText}" Foreground="{Binding TagForeground}" />
+                                                </Border>
+                                            </StackPanel>
+                                            <Button Grid.Column="2" Style="{StaticResource Btn.Icon}" Width="28" Height="28" Content="&#xE710;" FontSize="12"
+                                                    Command="{Binding AddCommand}" ToolTip="Adicionar senha nesta máquina" />
+                                        </Grid>
+
+                                        <!-- Credenciais -->
+                                        <ItemsControl ItemsSource="{Binding Items}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type vm:VaultItemViewModel}">
+                                                    <StackPanel>
+                                                        <Border Height="1" Background="{StaticResource DividerBrush}" Margin="16,0" />
+                                                        <StackPanel Margin="16,12,16,14">
+                                                            <!-- Rótulo + ações -->
+                                                            <Grid Margin="0,0,0,10">
+                                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                                    <TextBlock Text="&#xE8D7;" FontFamily="{StaticResource IconFont}" FontSize="12"
+                                                                               Foreground="{StaticResource AccentTextBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                                    <TextBlock Text="{Binding Label}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                                </StackPanel>
+                                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                                    <Button Style="{StaticResource Btn.Icon}" Width="26" Height="26" FontSize="12" Content="&#xE70F;"
+                                                                            Command="{Binding EditCommand}" ToolTip="Editar" />
+                                                                    <Button Style="{StaticResource Btn.Icon}" Width="26" Height="26" FontSize="12" Content="&#xE74D;"
+                                                                            Command="{Binding DeleteCommand}" ToolTip="Remover"
+                                                                            Visibility="{Binding CanDelete, Converter={StaticResource BoolToVis}}" />
+                                                                </StackPanel>
+                                                            </Grid>
+
+                                                            <!-- Usuário -->
+                                                            <TextBlock Text="USUÁRIO" Style="{StaticResource FieldLabel}" />
+                                                            <Border Style="{StaticResource FieldBox}" Margin="0,0,0,10">
+                                                                <Grid>
+                                                                    <TextBlock Text="{Binding Username}" Style="{StaticResource FieldText}" Margin="0,0,34,0" />
+                                                                    <TextBlock Text="(sem usuário)" Style="{StaticResource FieldText}" Foreground="{StaticResource TextTertiaryBrush}"
+                                                                               Visibility="{Binding HasUsername, Converter={StaticResource BoolToVis}, ConverterParameter=invert}" />
+                                                                    <Button Style="{StaticResource Btn.Icon}" Width="30" Height="30" FontSize="13" Content="&#xE8C8;"
+                                                                            HorizontalAlignment="Right" Command="{Binding CopyUserCommand}" ToolTip="Copiar usuário"
+                                                                            Visibility="{Binding HasUsername, Converter={StaticResource BoolToVis}}" />
+                                                                </Grid>
+                                                            </Border>
+
+                                                            <!-- Senha -->
+                                                            <TextBlock Text="SENHA" Style="{StaticResource FieldLabel}" />
+                                                            <Border Style="{StaticResource FieldBox}">
+                                                                <Grid>
+                                                                    <TextBlock Text="{Binding PasswordText}" Margin="0,0,66,0">
+                                                                        <TextBlock.Style>
+                                                                            <Style TargetType="TextBlock" BasedOn="{StaticResource FieldText}">
+                                                                                <Setter Property="FontSize" Value="15" />
+                                                                                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding IsRevealed}" Value="True">
+                                                                                        <Setter Property="FontSize" Value="13.5" />
+                                                                                        <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </TextBlock.Style>
+                                                                    </TextBlock>
+                                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                                        <Button Width="30" Height="30" FontSize="13" Command="{Binding ToggleRevealCommand}">
+                                                                            <Button.Style>
+                                                                                <Style TargetType="Button" BasedOn="{StaticResource Btn.Icon}">
+                                                                                    <Setter Property="Content" Value="&#xE7B3;" />
+                                                                                    <Setter Property="ToolTip" Value="Mostrar senha" />
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding IsRevealed}" Value="True">
+                                                                                            <Setter Property="Content" Value="&#xED1A;" />
+                                                                                            <Setter Property="ToolTip" Value="Esconder senha" />
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </Button.Style>
+                                                                        </Button>
+                                                                        <Button Style="{StaticResource Btn.Icon}" Width="30" Height="30" FontSize="13" Content="&#xE8C8;"
+                                                                                Command="{Binding CopyPasswordCommand}" ToolTip="Copiar senha (some em 30 s)" />
+                                                                    </StackPanel>
+                                                                </Grid>
+                                                            </Border>
+
+                                                            <TextBlock Text="{Binding Notes}" Style="{StaticResource Text.Caption}" Margin="0,10,0,0"
+                                                                       Visibility="{Binding HasNotes, Converter={StaticResource BoolToVis}}" />
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Grid>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>
