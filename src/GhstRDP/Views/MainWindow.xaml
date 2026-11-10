@@ -760,7 +760,7 @@
                                     <TextBlock Text="&#xE895;" Style="{StaticResource Text.Icon}" Foreground="{StaticResource TextSecondaryBrush}" />
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                         <TextBlock Text="Atualizar automaticamente" />
-                                        <TextBlock Text="Baixa a versão nova do GitHub, confere a assinatura (SHA-256) e troca quando você fechar o app."
+                                        <TextBlock Text="Baixa a versão nova do GitHub e instala quando você fechar o app."
                                                    Style="{StaticResource Text.Caption}" />
                                     </StackPanel>
                                     <CheckBox Grid.Column="2" Style="{StaticResource Toggle}" IsChecked="{Binding Update.AutoUpdate}" />
