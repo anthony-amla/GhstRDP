@@ -1,5 +1,4 @@
-# Gera o instalador (Velopack) e publica o Release no GitHub.
-# Para soltar uma versão:  git tag v1.2.0  &&  git push origin v1.2.0
+# Builds the Velopack installer and publishes a GitHub Release for every v* tag.
 name: release
 
 on:
@@ -19,27 +18,29 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      - name: Versão a partir da tag
+      - name: Version from tag
         id: version
         shell: pwsh
-        run: echo "value=$('${{ github.ref_name }}'.TrimStart('v'))" >> $env:GITHUB_OUTPUT
+        env:
+          TAG: ${{ github.ref_name }}
+        run: echo "value=$($env:TAG.TrimStart('v'))" >> $env:GITHUB_OUTPUT
 
-      - name: Publicar (self-contained, não precisa de .NET instalado)
+      - name: Publish self-contained
         run: dotnet publish src/GhstRDP/GhstRDP.csproj -c Release -r win-x64 --self-contained true -p:Version=${{ steps.version.outputs.value }} -o publish
 
-      - name: Instalar Velopack CLI
+      - name: Install Velopack CLI
         run: dotnet tool install -g vpk --version 1.2.161
 
-      - name: Baixar release anterior (para gerar atualização delta, menor)
+      - name: Download previous release for delta updates
         continue-on-error: true
         run: vpk download github --repoUrl ${{ github.server_url }}/${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }} -o releases
 
-      - name: Empacotar instalador
+      - name: Pack installer
         run: >
           vpk pack -u GhstRDPApp -v ${{ steps.version.outputs.value }} -p publish -e GhstRDP.exe
           --packTitle "Ghst RDP" --packAuthors "Ghst" -i src/GhstRDP/Assets/ghst.ico -o releases
 
-      - name: Publicar Release
+      - name: Upload release
         run: >
           vpk upload github --repoUrl ${{ github.server_url }}/${{ github.repository }}
           --publish --releaseName "Ghst RDP ${{ steps.version.outputs.value }}" --tag ${{ github.ref_name }}
