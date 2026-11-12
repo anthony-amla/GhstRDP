@@ -1,0 +1,25 @@
+# Fails a pull request that bumps the app version without release notes in CHANGELOG.md.
+name: changelog
+
+on:
+  pull_request:
+    paths:
+      - src/GhstRDP/GhstRDP.csproj
+      - CHANGELOG.md
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Notes exist for the project version
+        shell: pwsh
+        run: |
+          [xml]$project = Get-Content src/GhstRDP/GhstRDP.csproj
+          $version = ($project.Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1).Version
+          Write-Host "Project version: $version"
+          ./tools/changelog.ps1 -Version $version

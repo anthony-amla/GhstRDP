@@ -81,7 +81,11 @@ Feito em C# com WPF e .NET 10. O RDP embutido usa o controle ActiveX do `mstscax
 dotnet run --project src\GhstRDP\GhstRDP.csproj
 ```
 
-**Lançar uma versão:** envie uma tag `v*` (por exemplo `git tag v1.1.0` e `git push origin v1.1.0`). O workflow em `.github/workflows/release.yml` gera o instalador e publica o Release.
+**Lançar uma versão:**
+
+1. Abra um PR que sobe o `<Version>` no `GhstRDP.csproj` e troca o `## [Não lançado]` do [CHANGELOG.md](CHANGELOG.md) pelo número e a data. O PR falha se a versão não tiver notas.
+2. Depois do merge, envie a tag (por exemplo `git tag v1.1.0` e `git push origin v1.1.0`).
+3. O workflow em `.github/workflows/release.yml` gera o instalador e publica o Release com as notas do changelog.
 
 **Onde ficam os dados:**
 
