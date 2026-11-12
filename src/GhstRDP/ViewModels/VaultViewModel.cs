@@ -8,9 +8,9 @@ using GhstRDP.Views;
 
 namespace GhstRDP.ViewModels;
 
-public enum VaultState { Configurar, Bloqueado, Aberto }
+public enum VaultState { Setup, Locked, Unlocked }
 
-/// <summary>Aba "Senhas": cofre protegido por PIN, com as senhas agrupadas por máquina.</summary>
+/// <summary>Passwords page: a PIN-protected vault with entries grouped by machine.</summary>
 public partial class VaultViewModel : ObservableObject
 {
     readonly MainViewModel _main;
@@ -25,7 +25,7 @@ public partial class VaultViewModel : ObservableObject
 
     public VaultService Service => _vault;
 
-    public VaultState State => !_vault.IsConfigured ? VaultState.Configurar : _vault.IsUnlocked ? VaultState.Aberto : VaultState.Bloqueado;
+    public VaultState State => !_vault.IsConfigured ? VaultState.Setup : _vault.IsUnlocked ? VaultState.Unlocked : VaultState.Locked;
 
     [ObservableProperty] private string _error = "";
     [ObservableProperty] private bool _isBusy;
@@ -46,8 +46,6 @@ public partial class VaultViewModel : ObservableObject
             OnPropertyChanged(nameof(HasGroups));
         }
     }
-
-    // ---------------- PIN ----------------
 
     public async Task<bool> SetupAsync(string pin, string confirm)
     {
@@ -71,7 +69,7 @@ public partial class VaultViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            Log.Error("Falha ao criar PIN", ex);
+            Log.Error("Failed to set up vault PIN", ex);
             Error = ex.Message;
             return false;
         }
@@ -98,7 +96,7 @@ public partial class VaultViewModel : ObservableObject
             {
                 case UnlockResult.Ok:
                     return true;
-                case UnlockResult.Bloqueado:
+                case UnlockResult.LockedOut:
                     Error = $"Muitas tentativas. Tente de novo em {_vault.LockoutSecondsLeft} s.";
                     return false;
                 default:
@@ -130,9 +128,10 @@ public partial class VaultViewModel : ObservableObject
 
     [RelayCommand] void Add() => _main.EditVaultEntry(null, null);
 
-    // ---------------- Lista ----------------
-
-    /// <summary>Monta os grupos: um por servidor (login do RDP + senhas do cofre) e um por máquina digitada.</summary>
+    /// <summary>
+    /// Rebuilds the groups: one per server (RDP login plus linked vault entries) and one per
+    /// free-text machine name, filtered by <see cref="Search"/>.
+    /// </summary>
     public void Refresh()
     {
         Groups.Clear();
@@ -157,7 +156,7 @@ public partial class VaultViewModel : ObservableObject
 
             if (server.HasUser || server.HasPassword)
             {
-                var item = VaultItemViewModel.ForServerLogin(server, this, _main);
+                var item = VaultItemViewModel.ForServerLogin(server, _main);
                 if (groupMatches || Match(item.Label, item.Username)) items.Add(item);
             }
             foreach (var entry in entries.Where(e => e.ServerId == server.Id).OrderBy(e => e.Label, StringComparer.OrdinalIgnoreCase))
@@ -169,7 +168,6 @@ public partial class VaultViewModel : ObservableObject
             if (items.Count > 0) Groups.Add(VaultGroupViewModel.ForServer(server, items, _main));
         }
 
-        // Senhas de máquinas que não estão cadastradas como servidor (ou de servidor removido)
         var loose = entries.Where(e => e.ServerId == null || !serverIds.Contains(e.ServerId.Value))
             .GroupBy(e => string.IsNullOrWhiteSpace(e.Machine) ? "Sem máquina" : e.Machine.Trim(), StringComparer.OrdinalIgnoreCase)
             .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
@@ -262,7 +260,7 @@ public partial class VaultItemViewModel : ObservableObject
     public IRelayCommand EditCommand { get; private init; } = null!;
     public IRelayCommand DeleteCommand { get; private init; } = null!;
 
-    public static VaultItemViewModel ForServerLogin(ServerItemViewModel server, VaultViewModel vault, MainViewModel main) =>
+    public static VaultItemViewModel ForServerLogin(ServerItemViewModel server, MainViewModel main) =>
         new("Login do RDP", server.UserDisplay, () => Secrets.Unprotect(server.Record.PasswordProtected), main)
         {
             IsServerLogin = true,
@@ -287,8 +285,8 @@ public partial class VaultItemViewModel : ObservableObject
             PasswordText = "••••••••";
             return;
         }
-        var pwd = _getPassword();
-        PasswordText = string.IsNullOrEmpty(pwd) ? "(sem senha)" : pwd;
+        var password = _getPassword();
+        PasswordText = string.IsNullOrEmpty(password) ? "(sem senha)" : password;
         IsRevealed = true;
     }
 
@@ -297,8 +295,8 @@ public partial class VaultItemViewModel : ObservableObject
     [RelayCommand]
     void CopyPassword()
     {
-        var pwd = _getPassword();
-        if (string.IsNullOrEmpty(pwd)) _main.ShowToast("Sem senha salva");
-        else _main.CopySecret(pwd, "Senha copiada — some da área de transferência em 30 s");
+        var password = _getPassword();
+        if (string.IsNullOrEmpty(password)) _main.ShowToast("Sem senha salva");
+        else _main.CopySecret(password,"Senha copiada — some da área de transferência em 30 s");
     }
 }

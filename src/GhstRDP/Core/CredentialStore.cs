@@ -4,9 +4,8 @@ using ComFileTime = System.Runtime.InteropServices.ComTypes.FILETIME;
 namespace GhstRDP.Core;
 
 /// <summary>
-/// Grava credenciais no Gerenciador de Credenciais do Windows (alvo TERMSRV/host),
-/// que é onde o mstsc procura a senha. Usa a API direto, sem cmdkey,
-/// para a senha nunca aparecer em linha de comando.
+/// Saves RDP logins to Windows Credential Manager under TERMSRV/host, where mstsc looks for them.
+/// Calls the API directly so the password never shows up on a command line.
 /// </summary>
 public static class CredentialStore
 {
@@ -38,12 +37,13 @@ public static class CredentialStore
 
     public static string TargetFor(string host) => "TERMSRV/" + host.Trim();
 
+    /// <exception cref="InvalidOperationException">Windows refused to save the credential.</exception>
     public static void WriteRdp(string host, string userName, string password)
     {
         var blob = Marshal.StringToCoTaskMemUni(password);
         try
         {
-            var cred = new CREDENTIAL
+            var credential = new CREDENTIAL
             {
                 Type = CRED_TYPE_GENERIC,
                 TargetName = TargetFor(host),
@@ -53,7 +53,7 @@ public static class CredentialStore
                 Persist = CRED_PERSIST_LOCAL_MACHINE,
                 UserName = userName,
             };
-            if (!CredWrite(ref cred, 0))
+            if (!CredWrite(ref credential, 0))
                 throw new InvalidOperationException($"Falha ao salvar credencial no Windows (erro {Marshal.GetLastWin32Error()}).");
         }
         finally
@@ -65,6 +65,6 @@ public static class CredentialStore
     public static void DeleteRdp(string host)
     {
         try { CredDelete(TargetFor(host), CRED_TYPE_GENERIC, 0); }
-        catch (Exception ex) { Log.Warn("Falha ao remover credencial", ex); }
+        catch (Exception ex) { Log.Warn("Failed to delete credential", ex); }
     }
 }

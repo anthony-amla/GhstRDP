@@ -29,12 +29,10 @@
             <WrapPanel />
         </ItemsPanelTemplate>
 
-        <!-- Grade que preenche a largura toda (colunas iguais) -->
         <ItemsPanelTemplate x:Key="CardGridTemplate">
             <ui:AdaptiveGrid MinItemWidth="250" Spacing="14" />
         </ItemsPanelTemplate>
 
-        <!-- Status: verde online, vermelho offline, azul com sessão aberta -->
         <Style x:Key="StatusDot" TargetType="Ellipse">
             <Setter Property="Width" Value="8" />
             <Setter Property="Height" Value="8" />
@@ -48,7 +46,6 @@
             </Style.Triggers>
         </Style>
 
-        <!-- Chip de cliente no filtro (cor igual à etiqueta do card) -->
         <Style x:Key="ClientChipButton" TargetType="Button">
             <Setter Property="Margin" Value="0,0,8,8" />
             <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
@@ -101,7 +98,6 @@
             <MenuItem Header="Remover" Tag="&#xE74D;" Foreground="{StaticResource DangerTextBrush}" Command="{Binding DeleteCommand}" />
         </ContextMenu>
 
-        <!-- Card de servidor: largura vem da grade; a prévia acompanha a largura -->
         <DataTemplate x:Key="ServerCard" DataType="{x:Type vm:ServerItemViewModel}">
             <Button x:Name="Card" Style="{StaticResource Btn.Card}" Command="{Binding ConnectCommand}"
                     ContextMenu="{StaticResource ServerMenu}" AutomationProperties.Name="{Binding Name}">
@@ -111,7 +107,6 @@
                         <Grid>
                             <Image Source="/Assets/ghst.png" Width="56" Height="56" Opacity="0.16" RenderOptions.BitmapScalingMode="HighQuality"
                                    Visibility="{Binding ShowPlaceholder, Converter={StaticResource BoolToVis}}" />
-                            <!-- Banner: logo centralizada ou imagem cobrindo o card -->
                             <Image Source="{Binding Banner}" Stretch="Uniform" Margin="22,16" RenderOptions.BitmapScalingMode="HighQuality"
                                    Visibility="{Binding ShowBannerLogo, Converter={StaticResource BoolToVis}}" />
                             <Border CornerRadius="8,8,0,0" Visibility="{Binding ShowBannerFill, Converter={StaticResource BoolToVis}}">
@@ -172,7 +167,6 @@
             </Button>
         </DataTemplate>
 
-        <!-- Linha (modo lista) -->
         <DataTemplate x:Key="ServerRow" DataType="{x:Type vm:ServerItemViewModel}">
             <Button Style="{StaticResource Btn.Row}" Height="42" Padding="10,0,2,0" Command="{Binding ConnectCommand}"
                     ContextMenu="{StaticResource ServerMenu}" AutomationProperties.Name="{Binding Name}">
@@ -217,7 +211,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- ================= Barra de título ================= -->
+        <!-- Title bar -->
         <Grid Grid.Row="0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
@@ -233,13 +227,12 @@
                 <TextBlock Text="Ghst RDP" FontSize="12" VerticalAlignment="Center" />
             </StackPanel>
 
-            <!-- Aviso rápido: na barra de título para nunca ficar atrás da sessão RDP -->
+            <!-- Toast lives in the title bar so it never ends up behind the RDP host -->
             <TextBlock Grid.Column="1" Text="{Binding ToastText}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
                        HorizontalAlignment="Center" VerticalAlignment="Center"
                        Visibility="{Binding IsToastVisible, Converter={StaticResource BoolToVis}}" />
 
             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
-                <!-- Atualização baixada: reinicia para trocar a versão -->
                 <Button Style="{StaticResource Btn.Primary}" Height="26" MinHeight="0" Padding="10,0" Margin="0,7,10,0" FontSize="12"
                         WindowChrome.IsHitTestVisibleInChrome="True" Command="{Binding Update.RestartNowCommand}"
                         Visibility="{Binding Update.IsReady, Converter={StaticResource BoolToVis}}"
@@ -277,14 +270,12 @@
             </StackPanel>
         </Grid>
 
-        <!-- ================= Corpo ================= -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!-- Navegação -->
             <Border>
                 <Border.Style>
                     <Style TargetType="Border">
@@ -300,7 +291,7 @@
                 <DockPanel Margin="8,4,8,8" LastChildFill="False">
                     <StackPanel DockPanel.Dock="Top">
                         <RadioButton Style="{StaticResource Nav.Item}" GroupName="nav" AutomationProperties.Name="Servidores"
-                                     IsChecked="{Binding CurrentPage, Converter={StaticResource EnumBool}, ConverterParameter=Servidores}">
+                                     IsChecked="{Binding CurrentPage, Converter={StaticResource EnumBool}, ConverterParameter=Servers}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE977;" Style="{StaticResource Text.Icon}" Width="20" />
                                 <TextBlock Text="Servidores" Margin="12,0,0,0" VerticalAlignment="Center"
@@ -309,7 +300,7 @@
                         </RadioButton>
 
                         <RadioButton Style="{StaticResource Nav.Item}" GroupName="nav" AutomationProperties.Name="Sessões"
-                                     IsChecked="{Binding CurrentPage, Converter={StaticResource EnumBool}, ConverterParameter=Sessoes}">
+                                     IsChecked="{Binding CurrentPage, Converter={StaticResource EnumBool}, ConverterParameter=Sessions}">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -326,7 +317,7 @@
                         </RadioButton>
 
                         <RadioButton Style="{StaticResource Nav.Item}" GroupName="nav" AutomationProperties.Name="Senhas"
-                                     IsChecked="{Binding CurrentPage, Converter={StaticResource EnumBool}, ConverterParameter=Senhas}">
+                                     IsChecked="{Binding CurrentPage, Converter={StaticResource EnumBool}, ConverterParameter=Passwords}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE8D7;" Style="{StaticResource Text.Icon}" Width="20" />
                                 <TextBlock Text="Senhas" Margin="12,0,0,0" VerticalAlignment="Center"
@@ -336,7 +327,7 @@
                     </StackPanel>
 
                     <RadioButton DockPanel.Dock="Bottom" Style="{StaticResource Nav.Item}" GroupName="nav" AutomationProperties.Name="Configurações"
-                                 IsChecked="{Binding CurrentPage, Converter={StaticResource EnumBool}, ConverterParameter=Configuracoes}">
+                                 IsChecked="{Binding CurrentPage, Converter={StaticResource EnumBool}, ConverterParameter=Settings}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE713;" Style="{StaticResource Text.Icon}" Width="20" />
                             <TextBlock Text="Configurações" Margin="12,0,0,0" VerticalAlignment="Center"
@@ -346,12 +337,11 @@
                 </DockPanel>
             </Border>
 
-            <!-- Conteúdo -->
             <Border Grid.Column="1" Background="{StaticResource LayerBrush}" CornerRadius="8,0,0,0">
                 <Grid>
 
-                    <!-- ============ SERVIDORES ============ -->
-                    <Grid Margin="28,22,12,0" Visibility="{Binding CurrentPage, Converter={StaticResource EnumVis}, ConverterParameter=Servidores}">
+                    <!-- Servers -->
+                    <Grid Margin="28,22,12,0" Visibility="{Binding CurrentPage, Converter={StaticResource EnumVis}, ConverterParameter=Servers}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -359,7 +349,6 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <!-- Título e ações -->
                         <Grid Margin="0,0,16,0">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="Servidores" Style="{StaticResource Text.Title}" />
@@ -401,7 +390,6 @@
                             </StackPanel>
                         </Grid>
 
-                        <!-- Filtros: busca, tipo, status, favoritos -->
                         <WrapPanel Grid.Row="1" Margin="0,18,16,10" Visibility="{Binding HasServers, Converter={StaticResource BoolToVis}}">
                             <TextBox x:Name="SearchBox" Style="{StaticResource TextBox.Search}" Width="300" Margin="0,0,12,8"
                                      Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" Tag="Buscar nome, IP, usuário…  (Ctrl+K)" />
@@ -409,23 +397,23 @@
                             <Border Style="{StaticResource SegmentBar}" Margin="0,0,12,8">
                                 <StackPanel Orientation="Horizontal">
                                     <RadioButton Style="{StaticResource Segment}" GroupName="tipo" Content="Todos"
-                                                 IsChecked="{Binding TypeFilter, Converter={StaticResource EnumBool}, ConverterParameter=Todos}" />
+                                                 IsChecked="{Binding TypeFilter, Converter={StaticResource EnumBool}, ConverterParameter=All}" />
                                     <RadioButton Style="{StaticResource Segment}" GroupName="tipo" Content="VPS"
                                                  Visibility="{Binding HasVps, Converter={StaticResource BoolToVis}}"
                                                  IsChecked="{Binding TypeFilter, Converter={StaticResource EnumBool}, ConverterParameter=Vps}" />
                                     <RadioButton Style="{StaticResource Segment}" GroupName="tipo" Content="Dedicados"
-                                                 Visibility="{Binding HasDedicado, Converter={StaticResource BoolToVis}}"
-                                                 IsChecked="{Binding TypeFilter, Converter={StaticResource EnumBool}, ConverterParameter=Dedicado}" />
+                                                 Visibility="{Binding HasDedicated, Converter={StaticResource BoolToVis}}"
+                                                 IsChecked="{Binding TypeFilter, Converter={StaticResource EnumBool}, ConverterParameter=Dedicated}" />
                                     <RadioButton Style="{StaticResource Segment}" GroupName="tipo" Content="Outros"
-                                                 Visibility="{Binding HasOutro, Converter={StaticResource BoolToVis}}"
-                                                 IsChecked="{Binding TypeFilter, Converter={StaticResource EnumBool}, ConverterParameter=Outro}" />
+                                                 Visibility="{Binding HasOther, Converter={StaticResource BoolToVis}}"
+                                                 IsChecked="{Binding TypeFilter, Converter={StaticResource EnumBool}, ConverterParameter=Other}" />
                                 </StackPanel>
                             </Border>
 
                             <Border Style="{StaticResource SegmentBar}" Margin="0,0,12,8">
                                 <StackPanel Orientation="Horizontal">
                                     <RadioButton Style="{StaticResource Segment}" GroupName="status" Content="Todos"
-                                                 IsChecked="{Binding StatusFilter, Converter={StaticResource EnumBool}, ConverterParameter=Todos}" />
+                                                 IsChecked="{Binding StatusFilter, Converter={StaticResource EnumBool}, ConverterParameter=All}" />
                                     <RadioButton Style="{StaticResource Segment}" GroupName="status" AutomationProperties.Name="Online"
                                                  IsChecked="{Binding StatusFilter, Converter={StaticResource EnumBool}, ConverterParameter=Online}">
                                         <StackPanel Orientation="Horizontal">
@@ -466,7 +454,6 @@
                                     Command="{Binding ClearFiltersCommand}" Visibility="{Binding HasActiveFilter, Converter={StaticResource BoolToVis}}" />
                         </WrapPanel>
 
-                        <!-- Clientes -->
                         <ItemsControl Grid.Row="2" ItemsSource="{Binding Clients}" ItemsPanel="{StaticResource WrapPanelTemplate}" Margin="0,0,16,8"
                                       Visibility="{Binding HasClients, Converter={StaticResource BoolToVis}}">
                             <ItemsControl.ItemTemplate>
@@ -484,7 +471,6 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <!-- Lista / grade -->
                         <Grid Grid.Row="3">
                             <ScrollViewer VerticalScrollBarVisibility="Auto"
                                           Visibility="{Binding IsListView, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
@@ -518,7 +504,6 @@
                                 </ScrollViewer>
                             </DockPanel>
 
-                            <!-- Filtro sem resultado -->
                             <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,16,0,0" Orientation="Horizontal">
                                 <StackPanel.Visibility>
                                     <MultiBinding Converter="{StaticResource AllTrueToVis}">
@@ -530,7 +515,6 @@
                                 <Button Style="{StaticResource Btn.Link}" Content="Limpar filtros" Margin="10,0,0,0" Command="{Binding ClearFiltersCommand}" />
                             </StackPanel>
 
-                            <!-- Primeiro uso -->
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,80"
                                         Visibility="{Binding HasServers, Converter={StaticResource BoolToVis}, ConverterParameter=invert}">
                                 <Image Source="/Assets/ghst.png" Width="64" Height="64" Opacity="0.9" RenderOptions.BitmapScalingMode="HighQuality" />
@@ -543,15 +527,13 @@
                         </Grid>
                     </Grid>
 
-                    <!-- ============ SESSÕES ============ -->
-                    <!-- Hidden (não Collapsed): as sessões continuam vivas e com o mesmo tamanho ao trocar de página -->
-                    <Grid Visibility="{Binding CurrentPage, Converter={StaticResource EnumVisHidden}, ConverterParameter=Sessoes}">
+                    <!-- Sessions: Hidden, not Collapsed, so the RDP hosts keep running at the same size -->
+                    <Grid Visibility="{Binding CurrentPage, Converter={StaticResource EnumVisHidden}, ConverterParameter=Sessions}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <!-- Abas + ações da sessão ativa, numa linha só (sem barra extra roubando altura) -->
                         <Grid Margin="8,6,8,0" Visibility="{Binding HasSessions, Converter={StaticResource BoolToVis}}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -568,7 +550,7 @@
                                                 <Button Style="{StaticResource Btn.Icon}" Width="30" Height="30" Margin="4,0,0,2" FontSize="12" Content="&#xE710;"
                                                         VerticalAlignment="Center" ToolTip="Nova conexão" AutomationProperties.Name="Nova conexão"
                                                         Command="{Binding DataContext.GoToCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                        CommandParameter="{x:Static vm:Page.Servidores}" />
+                                                        CommandParameter="{x:Static vm:Page.Servers}" />
                                             </StackPanel>
                                         </ScrollViewer>
                                     </ControlTemplate>
@@ -615,7 +597,6 @@
                             </StackPanel>
                         </Grid>
 
-                        <!-- A aba ativa emenda nesta linha da mesma cor -->
                         <Border Grid.Row="1" Height="3" VerticalAlignment="Top" Background="{StaticResource TabActiveBrush}"
                                 Visibility="{Binding HasSessions, Converter={StaticResource BoolToVis}}" />
                         <Grid x:Name="SessionHost" Grid.Row="1" Margin="0,3,0,0" />
@@ -624,17 +605,17 @@
                                     Visibility="{Binding SessionCount, Converter={StaticResource CountToVis}, ConverterParameter=invert}">
                             <TextBlock Text="Nenhuma sessão aberta" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
                             <Button Style="{StaticResource Btn.Link}" Content="Ver servidores" HorizontalAlignment="Center" Margin="0,8,0,0"
-                                    Command="{Binding GoToCommand}" CommandParameter="{x:Static vm:Page.Servidores}" />
+                                    Command="{Binding GoToCommand}" CommandParameter="{x:Static vm:Page.Servers}" />
                         </StackPanel>
                     </Grid>
 
-                    <!-- ============ SENHAS (cofre com PIN) ============ -->
+                    <!-- Vault -->
                     <views:VaultView DataContext="{Binding Vault}"
-                                     Visibility="{Binding DataContext.CurrentPage, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource EnumVis}, ConverterParameter=Senhas}" />
+                                     Visibility="{Binding DataContext.CurrentPage, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource EnumVis}, ConverterParameter=Passwords}" />
 
-                    <!-- ============ CONFIGURAÇÕES ============ -->
+                    <!-- Settings -->
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                  Visibility="{Binding CurrentPage, Converter={StaticResource EnumVis}, ConverterParameter=Configuracoes}">
+                                  Visibility="{Binding CurrentPage, Converter={StaticResource EnumVis}, ConverterParameter=Settings}">
                         <StackPanel Margin="32,24,28,32" MaxWidth="860" HorizontalAlignment="Left">
                             <TextBlock Text="Configurações" Style="{StaticResource Text.Title}" Margin="0,0,0,20" />
 
@@ -654,8 +635,8 @@
                                     </StackPanel>
                                     <ComboBox Grid.Column="2" Width="220" VerticalAlignment="Center" SelectedValuePath="Tag"
                                               SelectedValue="{Binding DefaultOpenMode}">
-                                        <ComboBoxItem Content="No Ghst, em abas" Tag="{x:Static core:OpenMode.Embutido}" />
-                                        <ComboBoxItem Content="No mstsc" Tag="{x:Static core:OpenMode.Externo}" />
+                                        <ComboBoxItem Content="No Ghst, em abas" Tag="{x:Static core:OpenMode.Embedded}" />
+                                        <ComboBoxItem Content="No mstsc" Tag="{x:Static core:OpenMode.External}" />
                                     </ComboBox>
                                 </Grid>
                             </Border>
@@ -674,9 +655,9 @@
                                     </StackPanel>
                                     <ComboBox Grid.Column="2" Width="220" VerticalAlignment="Center" SelectedValuePath="Tag"
                                               SelectedValue="{Binding WinKeys}">
-                                        <ComboBoxItem Content="No servidor em tela cheia" Tag="{x:Static core:WinKeysMode.SomenteTelaCheia}" />
-                                        <ComboBoxItem Content="Sempre no servidor" Tag="{x:Static core:WinKeysMode.Sempre}" />
-                                        <ComboBoxItem Content="Sempre neste PC" Tag="{x:Static core:WinKeysMode.Nunca}" />
+                                        <ComboBoxItem Content="No servidor em tela cheia" Tag="{x:Static core:WinKeysMode.FullScreenOnly}" />
+                                        <ComboBoxItem Content="Sempre no servidor" Tag="{x:Static core:WinKeysMode.Always}" />
+                                        <ComboBoxItem Content="Sempre neste PC" Tag="{x:Static core:WinKeysMode.Never}" />
                                     </ComboBox>
                                 </Grid>
                             </Border>

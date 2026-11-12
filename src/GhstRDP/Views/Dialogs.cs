@@ -3,7 +3,7 @@ using GhstRDP.ViewModels;
 
 namespace GhstRDP.Views;
 
-/// <summary>Diálogos modais com o visual do app (janelas separadas: ficam acima das sessões RDP).</summary>
+/// <summary>Themed modal dialogs. They are separate windows so they stay above the RDP sessions.</summary>
 public static class Dialogs
 {
     public static void Info(Window? owner, string title, string message) =>
@@ -29,7 +29,8 @@ public static class Dialogs
         return window.ShowDialog() == true;
     }
 
-    /// <summary>Pede o PIN do cofre. true = cofre aberto.</summary>
+    /// <summary>Asks for the vault PIN.</summary>
+    /// <returns>True if the vault was unlocked.</returns>
     public static bool Pin(Window? owner, VaultViewModel vault)
     {
         var dialog = new PinDialog(vault);
@@ -56,7 +57,7 @@ public static class Dialogs
         }
         catch (InvalidOperationException)
         {
-            // dona fechando: abre centralizado na tela
+            // Owner is closing; fall back to centering on screen.
         }
         dialog.WindowStartupLocation = WindowStartupLocation.CenterScreen;
     }

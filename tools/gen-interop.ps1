@@ -1,5 +1,5 @@
-# Regenera os assemblies de interop do controle RDP do Windows (mstscax.dll) em lib\.
-# Rodar no Windows PowerShell 5.1 (usa o AxImporter do .NET Framework):
+# Regenerates the interop assemblies for the Windows RDP control (mstscax.dll) into lib\.
+# Needs Windows PowerShell 5.1, since AxImporter ships with .NET Framework:
 #   powershell -ExecutionPolicy Bypass -File tools\gen-interop.ps1
 $ErrorActionPreference = "Stop"
 $out = Join-Path $PSScriptRoot "..\lib"
@@ -15,5 +15,5 @@ $opts.silentMode = $true
 
 $importer = New-Object System.Windows.Forms.Design.AxImporter($opts)
 $result = $importer.GenerateFromFile((New-Object System.IO.FileInfo "$env:WINDIR\System32\mstscax.dll"))
-"Gerado: $result"
+"Generated: $result"
 $importer.GeneratedAssemblies

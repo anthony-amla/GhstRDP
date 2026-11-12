@@ -9,13 +9,13 @@ public sealed class VaultEntry
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
-    /// <summary>Servidor ao qual a senha pertence (null = máquina digitada em <see cref="Machine"/>).</summary>
+    /// <summary>Server this entry belongs to, or null for a free-text <see cref="Machine"/>.</summary>
     public Guid? ServerId { get; set; }
     public string Machine { get; set; } = "";
     public string Label { get; set; } = "";
     public string Username { get; set; } = "";
 
-    /// <summary>Senha criptografada: AES-256-GCM com a chave do PIN e, por cima, DPAPI do usuário do Windows.</summary>
+    /// <summary>AES-256-GCM with the PIN key, wrapped in DPAPI for the current Windows user.</summary>
     public string? Secret { get; set; }
     public string Notes { get; set; } = "";
     public DateTime CreatedAt { get; set; } = DateTime.Now;
@@ -26,31 +26,29 @@ public sealed class VaultData
 {
     public int Version { get; set; } = 1;
     public string? PinSalt { get; set; }
-    /// <summary>SHA-256 da metade "verificador" do PBKDF2 do PIN. O PIN em si nunca é salvo.</summary>
+    /// <summary>SHA-256 of the verifier half of the PIN derivation. The PIN itself is never stored.</summary>
     public string? PinVerifier { get; set; }
     public int Iterations { get; set; } = 310_000;
     public List<VaultEntry> Entries { get; set; } = new();
 }
 
-public enum UnlockResult { Ok, PinErrado, Bloqueado }
+public enum UnlockResult { Ok, WrongPin, LockedOut }
 
 /// <summary>
-/// Cofre de senhas protegido por PIN.
-/// PIN → PBKDF2-SHA256 (310 mil iterações, salt aleatório) → 64 bytes:
-///   32 primeiros = chave AES-256 das senhas (só fica na memória enquanto desbloqueado)
-///   32 últimos   = verificador (salvo só o SHA-256 dele, para conferir o PIN)
-/// Cada senha: AES-256-GCM (chave do PIN) e depois DPAPI (usuário do Windows).
+/// PIN-protected password vault. PBKDF2-SHA256 turns the PIN into 64 bytes: the first half is the
+/// AES-256 key (kept in memory only while unlocked), the second half is hashed and stored as the verifier.
 /// </summary>
 public sealed class VaultService
 {
+    // Changing this makes every vault entry unreadable.
     static readonly byte[] DpapiEntropy = "GhstRDP::cofre::v1"u8.ToArray();
     static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
 
     readonly object _gate = new();
     byte[]? _key;
-    DateTime _lastActivity;
+    long _lastActivity;
     int _failedAttempts;
-    DateTime _lockedUntil = DateTime.MinValue;
+    long _lockedUntil;
 
     public VaultData Data { get; private set; } = new();
     public TimeSpan AutoLockAfter { get; set; } = TimeSpan.FromMinutes(5);
@@ -61,8 +59,8 @@ public sealed class VaultService
     public bool IsConfigured => !string.IsNullOrEmpty(Data.PinSalt) && !string.IsNullOrEmpty(Data.PinVerifier);
     public bool IsUnlocked => _key != null;
 
-    /// <summary>Segundos que ainda faltam do bloqueio por PIN errado (0 = liberado).</summary>
-    public int LockoutSecondsLeft => Math.Max(0, (int)Math.Ceiling((_lockedUntil - DateTime.Now).TotalSeconds));
+    /// <summary>Seconds left in the wrong-PIN lockout, or 0.</summary>
+    public int LockoutSecondsLeft => (int)Math.Max(0, Math.Ceiling((_lockedUntil - Environment.TickCount64) / 1000.0));
 
     public event Action? StateChanged;
 
@@ -79,12 +77,12 @@ public sealed class VaultService
                 if (data == null) continue;
                 data.Entries ??= new List<VaultEntry>();
                 Data = data;
-                if (path == BackupPath) Log.Warn("Cofre restaurado do backup");
+                if (path == BackupPath) Log.Warn("Vault restored from backup");
                 return;
             }
             catch (Exception ex)
             {
-                Log.Error($"Falha ao ler o cofre ({path})", ex);
+                Log.Error($"Failed to read vault ({path})", ex);
             }
         }
         Data = new VaultData();
@@ -113,7 +111,7 @@ public sealed class VaultService
         }
     }
 
-    /// <summary>Primeiro uso: define o PIN e já deixa o cofre aberto. Lento de propósito (rodar fora da UI).</summary>
+    /// <summary>Sets the PIN on first use and leaves the vault unlocked. Deliberately slow, call it off the UI thread.</summary>
     public void SetupPin(string pin)
     {
         if (!IsValidPin(pin)) throw new ArgumentException("O PIN precisa ter de 4 a 12 números.");
@@ -127,11 +125,11 @@ public sealed class VaultService
         SetKey(key);
     }
 
-    /// <summary>Confere o PIN. Lento de propósito (rodar fora da UI).</summary>
+    /// <summary>Checks the PIN and unlocks on success. Deliberately slow, call it off the UI thread.</summary>
     public UnlockResult Unlock(string pin)
     {
-        if (!IsConfigured) return UnlockResult.PinErrado;
-        if (LockoutSecondsLeft > 0) return UnlockResult.Bloqueado;
+        if (!IsConfigured) return UnlockResult.WrongPin;
+        if (LockoutSecondsLeft > 0) return UnlockResult.LockedOut;
 
         var (key, verifierHash) = Derive(pin ?? "", Convert.FromBase64String(Data.PinSalt!), Data.Iterations);
         var expected = Convert.FromBase64String(Data.PinVerifier!);
@@ -146,13 +144,13 @@ public sealed class VaultService
         _failedAttempts++;
         if (_failedAttempts % 5 == 0)
         {
-            // 30 s, 60 s, 120 s... a cada 5 erros seguidos
+            // Lockout doubles every 5 consecutive misses: 30 s, 60 s, 120 s... capped at 15 min.
             var seconds = 30 * Math.Pow(2, _failedAttempts / 5 - 1);
-            _lockedUntil = DateTime.Now.AddSeconds(Math.Min(seconds, 900));
-            Log.Warn($"Cofre: {_failedAttempts} PINs errados, bloqueado por {seconds:0} s");
-            return UnlockResult.Bloqueado;
+            _lockedUntil = Environment.TickCount64 + (long)(Math.Min(seconds, 900) * 1000);
+            Log.Warn($"Vault: {_failedAttempts} wrong PINs, locked for {seconds:0} s");
+            return UnlockResult.LockedOut;
         }
-        return UnlockResult.PinErrado;
+        return UnlockResult.WrongPin;
     }
 
     void SetKey(byte[] key)
@@ -161,7 +159,7 @@ public sealed class VaultService
         {
             if (_key != null) CryptographicOperations.ZeroMemory(_key);
             _key = key;
-            _lastActivity = DateTime.Now;
+            _lastActivity = Environment.TickCount64;
         }
         StateChanged?.Invoke();
     }
@@ -177,12 +175,12 @@ public sealed class VaultService
         StateChanged?.Invoke();
     }
 
-    /// <summary>Marca uso (adia o bloqueio automático).</summary>
-    public void Touch() => _lastActivity = DateTime.Now;
+    /// <summary>Postpones the auto-lock.</summary>
+    public void Touch() => _lastActivity = Environment.TickCount64;
 
     public void CheckAutoLock()
     {
-        if (IsUnlocked && DateTime.Now - _lastActivity > AutoLockAfter) Lock();
+        if (IsUnlocked && Environment.TickCount64 - _lastActivity > AutoLockAfter.TotalMilliseconds) Lock();
     }
 
     public string Protect(string plain)
@@ -222,36 +220,21 @@ public sealed class VaultService
         }
         catch (Exception ex)
         {
-            Log.Error("Não foi possível abrir uma senha do cofre", ex);
+            Log.Error("Could not decrypt a vault entry", ex);
             return null;
         }
     }
 
-    /// <summary>Troca o PIN e recriptografa todas as senhas. Precisa estar desbloqueado.</summary>
-    public void ChangePin(string newPin)
-    {
-        if (!IsValidPin(newPin)) throw new ArgumentException("O PIN precisa ter de 4 a 12 números.");
-        if (!IsUnlocked) throw new InvalidOperationException("Cofre bloqueado.");
-
-        var plains = Data.Entries.Select(e => (e, Unprotect(e.Secret))).ToList();
-        var salt = RandomNumberGenerator.GetBytes(16);
-        var (key, verifierHash) = Derive(newPin, salt, Data.Iterations);
-        SetKey(key);
-        foreach (var (entry, plain) in plains)
-            entry.Secret = plain == null ? null : Protect(plain);
-        Data.PinSalt = Convert.ToBase64String(salt);
-        Data.PinVerifier = Convert.ToBase64String(verifierHash);
-        Save();
-    }
-
-    /// <summary>Esqueceu o PIN: apaga o cofre inteiro (as senhas não têm como ser recuperadas sem o PIN).</summary>
+    /// <summary>Wipes the vault. Used when the PIN is forgotten, since entries can't be recovered without it.</summary>
     public void Reset()
     {
         Lock();
         Data = new VaultData();
         _failedAttempts = 0;
-        _lockedUntil = DateTime.MinValue;
+        _lockedUntil = 0;
         Save();
+        try { File.Delete(BackupPath); }
+        catch (Exception ex) { Log.Warn("Failed to delete vault backup", ex); }
         StateChanged?.Invoke();
     }
 }

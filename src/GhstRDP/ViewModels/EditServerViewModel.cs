@@ -8,12 +8,11 @@ public partial class EditServerViewModel : ObservableObject
 {
     readonly ServerRecord _original;
 
-    EditServerViewModel(ServerRecord original, bool isNew, IReadOnlyList<string> groups, OpenMode appDefault)
+    EditServerViewModel(ServerRecord original, bool isNew, OpenMode appDefault)
     {
         _original = original;
         IsNew = isNew;
-        Groups = groups;
-        AppDefaultLabel = appDefault == OpenMode.Externo ? "Padrão (mstsc)" : "Padrão (no Ghst)";
+        AppDefaultLabel = appDefault == OpenMode.External ? "Padrão (mstsc)" : "Padrão (no Ghst)";
 
         _name = original.Name;
         _host = original.Host;
@@ -39,11 +38,10 @@ public partial class EditServerViewModel : ObservableObject
         _bannerFill = original.BannerFill;
         _bannerPath = Banners.PathFor(original);
         _bannerPreview = Banners.Load(_bannerPath);
-        // Duplicar: o banner do original precisa ser copiado para o servidor novo
+        // A duplicated server needs its own copy of the original's banner.
         BannerChanged = isNew && _bannerPath != null;
     }
 
-    // ---------------- Banner do card ----------------
     [ObservableProperty] private string? _bannerPath;
     [ObservableProperty] private System.Windows.Media.ImageSource? _bannerPreview;
     [ObservableProperty] private bool _bannerFill;
@@ -51,7 +49,7 @@ public partial class EditServerViewModel : ObservableObject
 
     public bool BannerChanged { get; private set; }
     public bool HasBanner => BannerPreview != null;
-    /// <summary>Imagem larga (banner pronto) sempre cobre o card; a opção só vale para logos.</summary>
+    /// <summary>Wide images always fill the card, so the fill option only applies to logos.</summary>
     public bool IsWideBanner => Banners.IsWide(BannerPreview);
     public bool CanChooseFill => HasBanner && !IsWideBanner;
     public bool ShowPreviewLogo => HasBanner && !BannerFill && !IsWideBanner;
@@ -111,19 +109,17 @@ public partial class EditServerViewModel : ObservableObject
         ApplyBannerToClient = false;
     }
 
-    public static EditServerViewModel ForNew(IReadOnlyList<string> groups, OpenMode appDefault, ServerRecord? template = null) =>
-        new(template ?? new ServerRecord(), true, groups, appDefault);
+    public static EditServerViewModel ForNew(OpenMode appDefault, ServerRecord? template = null) =>
+        new(template ?? new ServerRecord(), true, appDefault);
 
-    public static EditServerViewModel ForEdit(ServerRecord record, IReadOnlyList<string> groups, OpenMode appDefault) =>
-        new(record.Clone(), false, groups, appDefault);
+    public static EditServerViewModel ForEdit(ServerRecord record, OpenMode appDefault) =>
+        new(record.Clone(), false, appDefault);
 
     public bool IsNew { get; }
     public string Title => IsNew ? "Adicionar servidor" : "Editar servidor";
 
-    /// <summary>Chamado antes de mostrar a senha em texto (pede o PIN do cofre, se houver).</summary>
+    /// <summary>Checked before showing the password in plain text; returns false to deny (e.g. vault PIN not entered).</summary>
     public Func<bool>? RevealGate { get; set; }
-    public IReadOnlyList<string> Groups { get; }
-    public bool HasGroups => Groups.Count > 0;
     public string AppDefaultLabel { get; }
 
     [ObservableProperty] private string _name;
@@ -151,19 +147,18 @@ public partial class EditServerViewModel : ObservableObject
     [ObservableProperty] private string _testResult = "";
     [ObservableProperty] private bool _testOk;
 
-    public bool IsCustomDisplay => Display == DisplayMode.Personalizada;
+    public bool IsCustomDisplay => Display == DisplayMode.Custom;
     partial void OnDisplayChanged(DisplayMode value) => OnPropertyChanged(nameof(IsCustomDisplay));
 
-    [RelayCommand] void UseGroup(string group) => Group = group;
 
     [RelayCommand]
     async Task TestAsync()
     {
-        var (host, port, err) = ParseHost();
-        if (err != null)
+        var (host, port, error) = ParseHost();
+        if (error != null)
         {
             TestOk = false;
-            TestResult = err;
+            TestResult = error;
             return;
         }
         TestOk = false;
@@ -180,7 +175,7 @@ public partial class EditServerViewModel : ObservableObject
         host = host.TrimEnd('/');
         var portText = (Port ?? "").Trim();
 
-        // "host:porta" digitado no campo de host (IPv4/domínio)
+        // "host:port" typed into the host field (IPv4 or domain; IPv6 has more colons)
         if (host.Count(c => c == ':') == 1)
         {
             var parts = host.Split(':');
@@ -201,14 +196,16 @@ public partial class EditServerViewModel : ObservableObject
         return (host, port, null);
     }
 
+    /// <summary>Normalizes host and port, fills a missing name and checks the custom resolution.</summary>
+    /// <returns>An error message to show, or null when the form is valid.</returns>
     public string? Validate()
     {
-        var (host, port, err) = ParseHost();
-        if (err != null) return err;
+        var (host, port, error) = ParseHost();
+        if (error != null) return error;
         Host = host;
         Port = port.ToString();
 
-        if (Display == DisplayMode.Personalizada)
+        if (Display == DisplayMode.Custom)
         {
             if (!int.TryParse(CustomWidth, out var w) || w is < 640 or > 8192 ||
                 !int.TryParse(CustomHeight, out var h) || h is < 480 or > 8192)
@@ -221,29 +218,29 @@ public partial class EditServerViewModel : ObservableObject
 
     public ServerRecord ToRecord()
     {
-        var r = _original.Clone();
-        r.Name = Name.Trim();
-        r.Host = Host.Trim();
-        r.Port = int.Parse(Port);
-        r.Username = (Username ?? "").Trim();
-        r.Domain = (Domain ?? "").Trim();
-        r.PasswordProtected = Secrets.Protect(Password);
-        r.Kind = Kind;
-        r.Group = (Group ?? "").Trim();
-        r.Notes = (Notes ?? "").Trim();
-        r.Favorite = Favorite;
-        r.OpenMode = OpenMode;
-        r.Display = Display;
-        if (int.TryParse(CustomWidth, out var w)) r.CustomWidth = w & ~1;
-        if (int.TryParse(CustomHeight, out var h)) r.CustomHeight = h;
-        r.Multimon = Multimon;
-        r.RedirectClipboard = RedirectClipboard;
-        r.RedirectDrives = RedirectDrives;
-        r.RedirectPrinters = RedirectPrinters;
-        r.Audio = Audio;
-        r.AdminSession = AdminSession;
-        r.BannerFill = BannerFill;
-        // r.BannerFile é tratado por quem salva (precisa copiar o arquivo com o id do servidor)
-        return r;
+        var record = _original.Clone();
+        record.Name = Name.Trim();
+        record.Host = Host.Trim();
+        record.Port = int.Parse(Port);
+        record.Username = (Username ?? "").Trim();
+        record.Domain = (Domain ?? "").Trim();
+        record.PasswordProtected = Secrets.Protect(Password);
+        record.Kind = Kind;
+        record.Group = (Group ?? "").Trim();
+        record.Notes = (Notes ?? "").Trim();
+        record.Favorite = Favorite;
+        record.OpenMode = OpenMode;
+        record.Display = Display;
+        if (int.TryParse(CustomWidth, out var width)) record.CustomWidth = width & ~1;
+        if (int.TryParse(CustomHeight, out var height)) record.CustomHeight = height;
+        record.Multimon = Multimon;
+        record.RedirectClipboard = RedirectClipboard;
+        record.RedirectDrives = RedirectDrives;
+        record.RedirectPrinters = RedirectPrinters;
+        record.Audio = Audio;
+        record.AdminSession = AdminSession;
+        record.BannerFill = BannerFill;
+        // BannerFile is set by the caller, which copies the image under the server id.
+        return record;
     }
 }

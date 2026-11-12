@@ -1,6 +1,6 @@
 namespace GhstRDP.Core;
 
-/// <summary>Garante uma única instância; a segunda só traz a primeira para frente.</summary>
+/// <summary>Keeps a single running instance; a second launch just brings the first one to the front.</summary>
 public sealed class SingleInstance : IDisposable
 {
     static readonly string Suffix = Paths.InstanceKey == "default" ? "" : "." + Paths.InstanceKey;
@@ -35,9 +35,8 @@ public sealed class SingleInstance : IDisposable
             using var ev = EventWaitHandle.OpenExisting(EventName);
             ev.Set();
         }
-        catch
+        catch (WaitHandleCannotBeOpenedException)
         {
-            // a outra instância pode estar fechando
         }
     }
 
@@ -59,7 +58,7 @@ public sealed class SingleInstance : IDisposable
     public void Dispose()
     {
         _disposed = true;
-        try { _mutex.ReleaseMutex(); } catch { /* ignore */ }
+        try { _mutex.ReleaseMutex(); } catch (ApplicationException) { }
         _mutex.Dispose();
         _event.Dispose();
     }

@@ -6,7 +6,7 @@ using GhstRDP.ViewModels;
 
 namespace GhstRDP.Converters;
 
-/// <summary>true → Visible. Parâmetro "invert" inverte. <see cref="UseHidden"/> usa Hidden no lugar de Collapsed.</summary>
+/// <summary>true → Visible. Parameter "invert" negates; <see cref="UseHidden"/> uses Hidden instead of Collapsed.</summary>
 public sealed class BoolToVisibilityConverter : IValueConverter
 {
     public bool UseHidden { get; set; }
@@ -22,7 +22,7 @@ public sealed class BoolToVisibilityConverter : IValueConverter
         throw new NotSupportedException();
 }
 
-/// <summary>número × fator (ConverterParameter). Usado para a prévia manter a proporção da largura do card.</summary>
+/// <summary>Number × factor (ConverterParameter). Keeps the card preview proportional to the card width.</summary>
 public sealed class RatioConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object? parameter, CultureInfo culture)
@@ -35,7 +35,7 @@ public sealed class RatioConverter : IValueConverter
         throw new NotSupportedException();
 }
 
-/// <summary>Visible só quando todos os valores são true.</summary>
+/// <summary>Visible only when every value is true.</summary>
 public sealed class AllTrueToVisibilityConverter : IMultiValueConverter
 {
     public object Convert(object[] values, Type targetType, object? parameter, CultureInfo culture) =>
@@ -59,7 +59,7 @@ public sealed class InverseBoolConverter : IValueConverter
     public object ConvertBack(object value, Type targetType, object? parameter, CultureInfo culture) => value is not true;
 }
 
-/// <summary>Enum ↔ bool para RadioButtons. ConverterParameter = nome do valor.</summary>
+/// <summary>Enum ↔ bool for RadioButtons. ConverterParameter is the enum value name.</summary>
 public sealed class EnumToBoolConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object? parameter, CultureInfo culture) =>
@@ -76,7 +76,7 @@ public sealed class EnumToBoolConverter : IValueConverter
     }
 }
 
-/// <summary>Enum → Visibility. ConverterParameter = nome do valor (aceita "A|B").</summary>
+/// <summary>Enum → Visibility. ConverterParameter is the value name, or several as "A|B".</summary>
 public sealed class EnumToVisibilityConverter : IValueConverter
 {
     public bool UseHidden { get; set; }
@@ -91,7 +91,7 @@ public sealed class EnumToVisibilityConverter : IValueConverter
         throw new NotSupportedException();
 }
 
-/// <summary>int → Visible quando > 0 (ou == 0 com "invert").</summary>
+/// <summary>int → Visible when &gt; 0 (or == 0 with "invert").</summary>
 public sealed class CountToVisibilityConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object? parameter, CultureInfo culture)
@@ -105,7 +105,7 @@ public sealed class CountToVisibilityConverter : IValueConverter
         throw new NotSupportedException();
 }
 
-/// <summary>string não vazia → Visible.</summary>
+/// <summary>Non-blank string → Visible.</summary>
 public sealed class TextToVisibilityConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object? parameter, CultureInfo culture) =>
@@ -129,12 +129,12 @@ public sealed class StatusToBrushConverter : IValueConverter
     {
         ServerStatus.Online => Online,
         ServerStatus.Offline => Offline,
-        ServerStatus.Verificando => Checking,
-        SessionState.Conectado => Online,
-        SessionState.Conectando => Accent,
-        SessionState.Reconectando => Checking,
-        SessionState.Erro => Offline,
-        SessionState.Desconectado => Unknown,
+        ServerStatus.Checking => Checking,
+        SessionState.Connected => Online,
+        SessionState.Connecting => Accent,
+        SessionState.Reconnecting => Checking,
+        SessionState.Error => Offline,
+        SessionState.Disconnected => Unknown,
         _ => Unknown,
     };
 

@@ -5,7 +5,7 @@ using GhstRDP.ViewModels;
 
 namespace GhstRDP.Core;
 
-/// <summary>Verifica periodicamente se a porta RDP de cada servidor responde (TCP).</summary>
+/// <summary>Periodically checks whether each server's RDP port accepts a TCP connection.</summary>
 public sealed class StatusMonitor : IDisposable
 {
     readonly Func<IReadOnlyList<ServerItemViewModel>> _snapshot;
@@ -32,7 +32,7 @@ public sealed class StatusMonitor : IDisposable
             {
                 try { await CheckAllAsync(ct); }
                 catch (OperationCanceledException) { break; }
-                catch (Exception ex) { Log.Warn("Falha na verificação de status", ex); }
+                catch (Exception ex) { Log.Warn("Status check failed", ex); }
             }
             try { await Task.Delay(Interval, ct); }
             catch (OperationCanceledException) { break; }
@@ -52,7 +52,7 @@ public sealed class StatusMonitor : IDisposable
         {
             var (host, port) = await _ui.InvokeAsync(() =>
             {
-                if (item.Status == ServerStatus.Desconhecido) item.Status = ServerStatus.Verificando;
+                if (item.Status == ServerStatus.Unknown) item.Status = ServerStatus.Checking;
                 return (item.Host, item.Port);
             });
             var (online, ms) = await ProbeAsync(host, port, ct);
@@ -64,6 +64,7 @@ public sealed class StatusMonitor : IDisposable
         }
     }
 
+    /// <returns>Whether the port answered within 2.5 s, and the connect time in milliseconds.</returns>
     public static async Task<(bool Online, int Ms)> ProbeAsync(string host, int port, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(host) || port is < 1 or > 65535) return (false, 0);
@@ -82,9 +83,9 @@ public sealed class StatusMonitor : IDisposable
         }
     }
 
-    public enum ProbeResult { Online, Recusado, NaoEncontrado, SemResposta }
+    public enum ProbeResult { Online, Refused, NotFound, NoResponse }
 
-    /// <summary>Teste rápido antes de conectar: distingue porta fechada/DNS (falha certa) de lentidão.</summary>
+    /// <summary>Pre-connect check that tells a closed port or unknown host apart from a slow network.</summary>
     public static async Task<ProbeResult> ProbeDetailedAsync(string host, int port, TimeSpan timeout)
     {
         using var cts = new CancellationTokenSource(timeout);
@@ -96,15 +97,15 @@ public sealed class StatusMonitor : IDisposable
         }
         catch (SocketException ex) when (ex.SocketErrorCode == SocketError.ConnectionRefused)
         {
-            return ProbeResult.Recusado;
+            return ProbeResult.Refused;
         }
         catch (SocketException ex) when (ex.SocketErrorCode is SocketError.HostNotFound or SocketError.NoData or SocketError.TryAgain)
         {
-            return ProbeResult.NaoEncontrado;
+            return ProbeResult.NotFound;
         }
         catch
         {
-            return ProbeResult.SemResposta;
+            return ProbeResult.NoResponse;
         }
     }
 

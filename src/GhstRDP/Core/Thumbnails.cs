@@ -7,11 +7,7 @@ using WinForms = System.Windows.Forms;
 
 namespace GhstRDP.Core;
 
-/// <summary>
-/// Prévia da última tela da sessão, salva só neste PC.
-/// Nunca captura o que estiver por cima da sessão: se não der para garantir que a área
-/// visível é a própria sessão, simplesmente não gera prévia.
-/// </summary>
+/// <summary>Last-frame previews of sessions, stored locally.</summary>
 public static class Thumbnails
 {
     [StructLayout(LayoutKind.Sequential)]
@@ -28,6 +24,8 @@ public static class Thumbnails
 
     public static string PathFor(Guid id) => Path.Combine(Paths.ThumbsDir, $"{id}.jpg");
 
+    /// <summary>Saves a preview of the RDP control. Never grabs pixels from windows covering it.</summary>
+    /// <returns>False when nothing usable could be captured.</returns>
     public static bool Capture(WinForms.Control control, Guid id)
     {
         int w = control.Width, h = control.Height;
@@ -43,7 +41,7 @@ public static class Thumbnails
 
         if (IsMostlyBlack(full))
         {
-            // Cópia da tela só se a sessão estiver na frente e sem nada por cima
+            // PrintWindow can't render some RDP surfaces; fall back to a screen copy only when nothing covers them.
             if (!IsUnobstructed(control)) return false;
             using var g = Graphics.FromImage(full);
             g.CopyFromScreen(control.PointToScreen(Point.Empty), Point.Empty, new Size(w, h));
@@ -71,7 +69,6 @@ public static class Thumbnails
         return true;
     }
 
-    /// <summary>A janela do app está em primeiro plano e todos os pontos da área pertencem a ela?</summary>
     static bool IsUnobstructed(WinForms.Control control)
     {
         var root = GetAncestor(control.Handle, GA_ROOT);
@@ -101,8 +98,22 @@ public static class Thumbnails
         return samples == 0 || bright < samples / 10;
     }
 
+    public static void DeleteAll()
+    {
+        try
+        {
+            if (!Directory.Exists(Paths.ThumbsDir)) return;
+            foreach (var file in Directory.GetFiles(Paths.ThumbsDir)) File.Delete(file);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Failed to delete thumbnails", ex);
+        }
+    }
+
     public static void Delete(Guid id)
     {
-        try { File.Delete(PathFor(id)); } catch { /* ignore */ }
+        try { File.Delete(PathFor(id)); }
+        catch (Exception ex) { Log.Warn("Failed to delete thumbnail", ex); }
     }
 }

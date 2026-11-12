@@ -10,11 +10,9 @@
              Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisHidden}}">
     <Grid x:Name="RdpArea" Background="Black">
 
-        <!-- Controle RDP do Windows (mesmo motor do mstsc) -->
         <wfi:WindowsFormsHost x:Name="RdpHost" Background="Black"
                               Visibility="{Binding ShowRdp, Converter={StaticResource BoolToVisHidden}}" />
 
-        <!-- Conectando / desconectado / erro -->
         <Grid Background="{StaticResource LayerBrush}" Visibility="{Binding ShowStatusPanel, Converter={StaticResource BoolToVis}}">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="480" Margin="24">
 

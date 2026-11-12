@@ -1,27 +1,28 @@
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace GhstRDP.Core;
 
 public static class Paths
 {
-    /// <summary>
-    /// Pasta alternativa (variável de ambiente GHSTRDP_HOME), útil para testar sem tocar nos dados reais.
-    /// </summary>
+    /// <summary>Optional data folder from GHSTRDP_HOME, handy for testing without touching real data.</summary>
     static readonly string? Override = Environment.GetEnvironmentVariable("GHSTRDP_HOME");
 
-    public static string RoamingDir { get; } = string.IsNullOrWhiteSpace(Override)
-        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GhstRDP")
-        : Path.Combine(Override, "roaming");
+    static bool HasOverride => !string.IsNullOrWhiteSpace(Override);
 
-    public static string LocalDir { get; } = string.IsNullOrWhiteSpace(Override)
-        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "GhstRDP")
-        : Path.Combine(Override, "local");
+    public static string RoamingDir { get; } = HasOverride
+        ? Path.Combine(Override!, "roaming")
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GhstRDP");
 
-    /// <summary>Sufixo para a trava de instância única: pasta de dados diferente = instância separada.</summary>
-    public static string InstanceKey { get; } = string.IsNullOrWhiteSpace(Override)
-        ? "default"
-        : Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(Path.GetFullPath(Override).ToLowerInvariant())))[..12];
+    public static string LocalDir { get; } = HasOverride
+        ? Path.Combine(Override!, "local")
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "GhstRDP");
+
+    /// <summary>Single-instance key: a different data folder runs as a separate instance.</summary>
+    public static string InstanceKey { get; } = HasOverride
+        ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(Override!).ToLowerInvariant())))[..12]
+        : "default";
 
     public static string DataFile => Path.Combine(RoamingDir, "data.json");
     public static string DataBackupFile => Path.Combine(RoamingDir, "data.json.bak");

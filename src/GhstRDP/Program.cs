@@ -7,7 +7,7 @@ public static class Program
     [STAThread]
     public static void Main(string[] args)
     {
-        // Precisa ser a primeira coisa: o Velopack usa isso na instalação, atualização e desinstalação.
+        // Must run first: Velopack hooks install, update and uninstall through it.
         VelopackApp.Build().Run();
 
         var app = new App();

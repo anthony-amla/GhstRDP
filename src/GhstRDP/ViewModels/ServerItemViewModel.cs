@@ -7,7 +7,7 @@ using GhstRDP.Core;
 
 namespace GhstRDP.ViewModels;
 
-public enum ServerStatus { Desconhecido, Verificando, Online, Offline }
+public enum ServerStatus { Unknown, Checking, Online, Offline }
 
 public partial class ServerItemViewModel : ObservableObject
 {
@@ -39,7 +39,7 @@ public partial class ServerItemViewModel : ObservableObject
     public string KindLabel => Record.Kind switch
     {
         ServerKind.Vps => "VPS",
-        ServerKind.Dedicado => "Dedicado",
+        ServerKind.Dedicated => "Dedicado",
         _ => "Outro",
     };
     public bool Favorite => Record.Favorite;
@@ -48,15 +48,14 @@ public partial class ServerItemViewModel : ObservableObject
     public bool HasNotes => !string.IsNullOrWhiteSpace(Record.Notes);
     public string Subtitle => HasGroup ? $"{DisplayAddress}  ·  {Group}" : DisplayAddress;
 
-    // ---------- Modo sigiloso ----------
     bool Privacy => _owner.PrivacyMode;
 
-    /// <summary>Endereço dentro de frases e dicas (mensagens de erro, confirmações): "IP oculto" no modo sigiloso.</summary>
+    /// <summary>Address used inside messages and tooltips; replaced by a placeholder in privacy mode.</summary>
     public string DisplayAddress => Privacy ? "(IP oculto)" : Address;
 
     /// <summary>
-    /// Endereço para os cards e a lista. No modo sigiloso é um IP FALSO, que a tela mostra borrado
-    /// (borrar o IP real não basta: dígitos borrados podem ser reconstruídos).
+    /// Address shown on cards and list rows. In privacy mode this is a fake address that the view blurs,
+    /// since blurred real digits can still be recovered.
     /// </summary>
     public string ShownAddress => Privacy ? FakeAddress(Record.Host) : Address;
     public bool IsMasked => Privacy;
@@ -66,31 +65,28 @@ public partial class ServerItemViewModel : ObservableObject
             ? "000.000.000.000"
             : "servidor.exemplo.com";
 
-    /// <summary>Cliente e tipo em maiúsculas para as etiquetas do rodapé do card.</summary>
     public string ClientLabel => Record.Group.Trim().ToUpperInvariant();
     public string KindTag => KindLabel.ToUpperInvariant();
 
-    /// <summary>Texto à direita do rodapé: latência quando online.</summary>
     public string FooterStatus => Status switch
     {
         ServerStatus.Online => $"{LatencyMs} ms",
         ServerStatus.Offline => "offline",
-        ServerStatus.Verificando => "···",
+        ServerStatus.Checking => "···",
         _ => "",
     };
 
     ImageSource? _pixelThumbnail;
-    /// <summary>Prévia reduzida a poucos pixels (modo sigiloso): mostra só o "clima" da tela, sem texto legível.</summary>
+    /// <summary>Thumbnail downscaled to a few pixels for privacy mode, so no text is legible.</summary>
     public ImageSource? PixelThumbnail => _pixelThumbnail;
     public bool ShowThumbnail => !HasBanner && Thumbnail != null && !Privacy;
     public bool ShowPixelThumbnail => !HasBanner && _pixelThumbnail != null && Privacy;
     public bool ShowPlaceholder => !HasBanner && Thumbnail == null;
 
-    // ---------- Banner (logo da empresa no lugar da prévia) ----------
     ImageSource? _banner;
     public ImageSource? Banner => _banner;
     public bool HasBanner => _banner != null;
-    /// <summary>Imagem larga (banner pronto) sempre cobre o card; só logos "quadradas" ficam centralizadas.</summary>
+    // Wide images always fill the card; only squarish logos are centered.
     bool BannerCovers => Record.BannerFill || Banners.IsWide(_banner);
     public bool ShowBannerLogo => HasBanner && !BannerCovers;
     public bool ShowBannerFill => HasBanner && BannerCovers;
@@ -145,7 +141,7 @@ public partial class ServerItemViewModel : ObservableObject
     {
         ServerStatus.Online => $"{LatencyMs} ms",
         ServerStatus.Offline => "Offline",
-        ServerStatus.Verificando => "Verificando",
+        ServerStatus.Checking => "Verificando",
         _ => "—",
     };
 
@@ -155,7 +151,7 @@ public partial class ServerItemViewModel : ObservableObject
         {
             ServerStatus.Online => $"Online · {LatencyMs} ms",
             ServerStatus.Offline => $"Sem resposta na porta {Port}",
-            ServerStatus.Verificando => "Verificando…",
+            ServerStatus.Checking => "Verificando…",
             _ => "Status desconhecido",
         };
 
@@ -177,7 +173,6 @@ public partial class ServerItemViewModel : ObservableObject
 
     partial void OnThumbnailChanged(ImageSource? value)
     {
-        // Versão "pixelizada" da prévia para o modo sigiloso (poucos pixels = nada legível)
         _pixelThumbnail = null;
         if (value is BitmapSource bmp && bmp.PixelWidth > 0)
         {
@@ -190,7 +185,7 @@ public partial class ServerItemViewModel : ObservableObject
             }
             catch (Exception ex)
             {
-                Log.Warn("Falha ao pixelizar prévia", ex);
+                Log.Warn("Failed to pixelate thumbnail", ex);
             }
         }
         OnPropertyChanged(nameof(HasThumbnail));
@@ -207,13 +202,13 @@ public partial class ServerItemViewModel : ObservableObject
         _owner.NotifyStatusChanged();
     }
 
-    /// <summary>Troca o registro (após edição) e atualiza todos os bindings.</summary>
+    /// <summary>Replaces the record after an edit and refreshes every binding.</summary>
     public void Update(ServerRecord record)
     {
         var hostChanged = !string.Equals(record.Host, Record.Host, StringComparison.OrdinalIgnoreCase) || record.Port != Record.Port;
         Record = record;
         LoadBanner();
-        if (hostChanged) Status = ServerStatus.Desconhecido;
+        if (hostChanged) Status = ServerStatus.Unknown;
         OnPropertyChanged(string.Empty);
     }
 
@@ -245,14 +240,14 @@ public partial class ServerItemViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            Log.Warn("Falha ao carregar miniatura", ex);
+            Log.Warn("Failed to load thumbnail", ex);
             Thumbnail = null;
         }
     }
 
     [RelayCommand] void Connect() => _owner.Connect(this);
-    [RelayCommand] void ConnectEmbedded() => _owner.Connect(this, OpenMode.Embutido);
-    [RelayCommand] void ConnectExternal() => _owner.Connect(this, OpenMode.Externo);
+    [RelayCommand] void ConnectEmbedded() => _owner.Connect(this, OpenMode.Embedded);
+    [RelayCommand] void ConnectExternal() => _owner.Connect(this, OpenMode.External);
     [RelayCommand] void Edit() => _owner.EditServer(this);
     [RelayCommand] void Duplicate() => _owner.DuplicateServer(this);
     [RelayCommand] void Delete() => _owner.DeleteServer(this);

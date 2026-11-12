@@ -9,10 +9,10 @@
              d:DataContext="{d:DesignInstance Type=vm:VaultViewModel}">
     <Grid>
 
-        <!-- ============ Primeiro uso: criar PIN ============ -->
+        <!-- Setup -->
         <Border Width="400" HorizontalAlignment="Center" VerticalAlignment="Center" Background="{StaticResource SurfaceBrush}"
                 CornerRadius="8" Padding="28,26"
-                Visibility="{Binding State, Converter={StaticResource EnumVis}, ConverterParameter=Configurar}">
+                Visibility="{Binding State, Converter={StaticResource EnumVis}, ConverterParameter=Setup}">
             <StackPanel>
                 <TextBlock Text="&#xE72E;" FontFamily="{StaticResource IconFont}" FontSize="24" Foreground="{StaticResource AccentTextBrush}" />
                 <TextBlock Text="Crie um PIN para o cofre" FontSize="18" FontWeight="SemiBold" Margin="0,14,0,6" />
@@ -29,10 +29,10 @@
             </StackPanel>
         </Border>
 
-        <!-- ============ Bloqueado ============ -->
+        <!-- Locked -->
         <Border Width="360" HorizontalAlignment="Center" VerticalAlignment="Center" Background="{StaticResource SurfaceBrush}"
                 CornerRadius="8" Padding="28,26"
-                Visibility="{Binding State, Converter={StaticResource EnumVis}, ConverterParameter=Bloqueado}">
+                Visibility="{Binding State, Converter={StaticResource EnumVis}, ConverterParameter=Locked}">
             <StackPanel>
                 <TextBlock Text="&#xE72E;" FontFamily="{StaticResource IconFont}" FontSize="24" Foreground="{StaticResource AccentTextBrush}" />
                 <TextBlock Text="Senhas bloqueadas" FontSize="18" FontWeight="SemiBold" Margin="0,14,0,6" />
@@ -48,8 +48,8 @@
             </StackPanel>
         </Border>
 
-        <!-- ============ Aberto: um card por máquina ============ -->
-        <Grid Margin="28,22,12,0" Visibility="{Binding State, Converter={StaticResource EnumVis}, ConverterParameter=Aberto}">
+        <!-- Unlocked -->
+        <Grid Margin="28,22,12,0" Visibility="{Binding State, Converter={StaticResource EnumVis}, ConverterParameter=Unlocked}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
@@ -94,7 +94,6 @@
                             <DataTemplate DataType="{x:Type vm:VaultGroupViewModel}">
                                 <Border Background="{StaticResource SurfaceBrush}" CornerRadius="8">
                                     <StackPanel>
-                                        <!-- Cabeçalho: máquina + cliente -->
                                         <Grid Margin="16,13,10,11">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" />
@@ -115,14 +114,12 @@
                                                     Command="{Binding AddCommand}" ToolTip="Adicionar senha nesta máquina" />
                                         </Grid>
 
-                                        <!-- Credenciais -->
                                         <ItemsControl ItemsSource="{Binding Items}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate DataType="{x:Type vm:VaultItemViewModel}">
                                                     <StackPanel>
                                                         <Border Height="1" Background="{StaticResource DividerBrush}" Margin="16,0" />
                                                         <StackPanel Margin="16,12,16,14">
-                                                            <!-- Rótulo + ações -->
                                                             <Grid Margin="0,0,0,10">
                                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                                     <TextBlock Text="&#xE8D7;" FontFamily="{StaticResource IconFont}" FontSize="12"
@@ -138,7 +135,6 @@
                                                                 </StackPanel>
                                                             </Grid>
 
-                                                            <!-- Usuário -->
                                                             <TextBlock Text="USUÁRIO" Style="{StaticResource FieldLabel}" />
                                                             <Border Style="{StaticResource FieldBox}" Margin="0,0,0,10">
                                                                 <Grid>
@@ -151,7 +147,6 @@
                                                                 </Grid>
                                                             </Border>
 
-                                                            <!-- Senha -->
                                                             <TextBlock Text="SENHA" Style="{StaticResource FieldLabel}" />
                                                             <Border Style="{StaticResource FieldBox}">
                                                                 <Grid>

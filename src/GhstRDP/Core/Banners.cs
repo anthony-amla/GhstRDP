@@ -4,16 +4,17 @@ using System.Windows.Media.Imaging;
 
 namespace GhstRDP.Core;
 
-/// <summary>Imagens de banner dos cards (logo da empresa). Ficam em %APPDATA%\GhstRDP\banners.</summary>
+/// <summary>Card banner images (usually a client logo), stored in <see cref="Paths.BannersDir"/>.</summary>
 public static class Banners
 {
     public const string FileFilter = "Imagens|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|Todos os arquivos|*.*";
     const long MaxBytes = 15 * 1024 * 1024;
 
     public static string? PathFor(ServerRecord record) =>
-        string.IsNullOrEmpty(record.BannerFile) ? null : Path.Combine(Paths.BannersDir, record.BannerFile);
+        string.IsNullOrEmpty(record.BannerFile) ? null : Path.Combine(Paths.BannersDir, Path.GetFileName(record.BannerFile));
 
-    /// <summary>Carrega sem travar o arquivo (pode ser trocado/apagado depois).</summary>
+    /// <summary>Loads an image without keeping the file locked.</summary>
+    /// <returns>A frozen image, or null when the file is missing or unreadable.</returns>
     public static ImageSource? Load(string? path, int decodeWidth = 640)
     {
         if (string.IsNullOrEmpty(path) || !File.Exists(path)) return null;
@@ -31,16 +32,16 @@ public static class Banners
         }
         catch (Exception ex)
         {
-            Log.Warn($"Não foi possível abrir a imagem {path}", ex);
+            Log.Warn($"Could not open image {path}", ex);
             return null;
         }
     }
 
-    /// <summary>Imagem bem mais larga que alta (banner pronto, ex.: 2:1): deve cobrir o card todo.</summary>
+    /// <returns>True for banner-shaped images (1.5:1 or wider), which should cover the whole card.</returns>
     public static bool IsWide(ImageSource? image) =>
         image is BitmapSource b && b.PixelHeight > 0 && (double)b.PixelWidth / b.PixelHeight >= 1.5;
 
-    /// <summary>Confere se o arquivo é uma imagem que o app consegue abrir.</summary>
+    /// <returns>An error message for the user, or null when the file is a usable image.</returns>
     public static string? Validate(string path)
     {
         try
@@ -56,7 +57,8 @@ public static class Banners
         return Load(path, 64) == null ? "Esse arquivo não é uma imagem que o Windows consegue abrir." : null;
     }
 
-    /// <summary>Copia a imagem para a pasta de banners com o id do servidor e devolve o nome do arquivo.</summary>
+    /// <summary>Copies an image into the banners folder, named after the server.</summary>
+    /// <returns>The stored file name, to put in <see cref="ServerRecord.BannerFile"/>.</returns>
     public static string Save(Guid serverId, string sourcePath)
     {
         Directory.CreateDirectory(Paths.BannersDir);
@@ -65,7 +67,6 @@ public static class Banners
         var name = $"{serverId}{ext}";
         var target = Path.Combine(Paths.BannersDir, name);
 
-        // Remove versões antigas com outra extensão
         foreach (var old in Directory.GetFiles(Paths.BannersDir, $"{serverId}.*"))
         {
             if (!string.Equals(old, target, StringComparison.OrdinalIgnoreCase))
@@ -90,6 +91,6 @@ public static class Banners
     static void TryDelete(string path)
     {
         try { File.Delete(path); }
-        catch (Exception ex) { Log.Warn($"Falha ao apagar {path}", ex); }
+        catch (Exception ex) { Log.Warn($"Failed to delete {path}", ex); }
     }
 }

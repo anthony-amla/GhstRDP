@@ -12,8 +12,7 @@ using WinForms = System.Windows.Forms;
 namespace GhstRDP.Views;
 
 /// <summary>
-/// Hospeda o controle RDP do Windows (mstscax, o mesmo motor do mstsc) dentro do app.
-/// Cada aba tem sua própria instância; trocar de aba só esconde, nunca recria (não derruba a sessão).
+/// Hosts the Windows RDP ActiveX control (mstscax) for one session tab.
 /// </summary>
 public partial class SessionView : UserControl, IDisposable
 {
@@ -39,8 +38,7 @@ public partial class SessionView : UserControl, IDisposable
 
         _panel = new WinForms.Panel { BackColor = System.Drawing.Color.FromArgb(21, 21, 24), Dock = WinForms.DockStyle.Fill };
 
-        // Cobre a tela branca de "Conectando…" do controle RDP. É um irmão por cima do controle:
-        // o controle continua visível e ativo por baixo (escondido ele não renderiza).
+        // Covers the white "connecting" screen; the RDP control must stay visible underneath or it won't render.
         _cover = new WinForms.Panel { BackColor = System.Drawing.Color.FromArgb(21, 21, 24), Dock = WinForms.DockStyle.Fill, Visible = false };
         _coverLabel = new WinForms.Label
         {
@@ -84,7 +82,6 @@ public partial class SessionView : UserControl, IDisposable
     {
         if (_started) return;
         _started = true;
-        // Espera o layout terminar para saber o tamanho real da área
         Dispatcher.InvokeAsync(Connect, DispatcherPriority.Background);
     }
 
@@ -97,8 +94,6 @@ public partial class SessionView : UserControl, IDisposable
             return Math.Clamp(scale, 100u, 500u);
         }
     }
-
-    // ===================== Conexão =====================
 
     int _connectGeneration;
 
@@ -115,36 +110,34 @@ public partial class SessionView : UserControl, IDisposable
             _resizeFailures = 0;
 
             var record = _vm.Server.Record;
-            _vm.SetState(SessionState.Conectando, "Conectando…", _vm.Server.DisplayAddress);
+            _vm.SetState(SessionState.Connecting, "Conectando…", _vm.Server.DisplayAddress);
 
-            // Teste rápido: porta fechada ou DNS errado falham na hora, sem esperar o timeout do RDP
             var probe = await StatusMonitor.ProbeDetailedAsync(record.Host, record.Port, TimeSpan.FromSeconds(4));
             if (generation != _connectGeneration || _disposed || _closing) return;
-            if (probe == StatusMonitor.ProbeResult.Recusado)
+            if (probe == StatusMonitor.ProbeResult.Refused)
             {
                 _vm.Server.SetStatus(false, 0);
-                _vm.SetState(SessionState.Erro, "O servidor recusou a conexão",
+                _vm.SetState(SessionState.Error, "O servidor recusou a conexão",
                     $"Nada respondendo em {_vm.Server.DisplayAddress}. Confira a porta e se a Área de Trabalho Remota está habilitada no servidor.");
                 return;
             }
-            if (probe == StatusMonitor.ProbeResult.NaoEncontrado)
+            if (probe == StatusMonitor.ProbeResult.NotFound)
             {
                 _vm.Server.SetStatus(false, 0);
-                _vm.SetState(SessionState.Erro, "Endereço não encontrado",
+                _vm.SetState(SessionState.Error, "Endereço não encontrado",
                     $"Não foi possível encontrar {_vm.Server.DisplayAddress}. Confira o IP ou domínio.");
                 return;
             }
 
-            // O controle RDP só ativa a renderização se a janela dele estiver visível na hora de criar.
-            // Se a aba/página estiver escondida agora, espera ela aparecer.
+            // The ActiveX only starts rendering if its host is visible when created; otherwise the screen stays black.
             if (!IsVisible)
             {
                 _pendingStart = true;
-                Log.Info($"{_vm.Server.Name}: aguardando a aba ficar visível para conectar");
+                Log.Info($"{_vm.Server.Name}: waiting for the tab to become visible before connecting");
                 return;
             }
 
-            _vm.SetState(SessionState.Conectando, "Conectando…", _vm.Server.DisplayAddress, rdpVisible: true);
+            _vm.SetState(SessionState.Connecting, "Conectando…", _vm.Server.DisplayAddress, rdpVisible: true);
             UpdateLayout();
             await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Background);
             if (generation != _connectGeneration || _disposed || _closing) return;
@@ -153,8 +146,8 @@ public partial class SessionView : UserControl, IDisposable
         }
         catch (Exception ex)
         {
-            Log.Error("Falha ao iniciar a sessão RDP", ex);
-            _vm.SetState(SessionState.Erro, "Não foi possível iniciar a conexão", ex.Message);
+            Log.Error("Failed to start the RDP session", ex);
+            _vm.SetState(SessionState.Error, "Não foi possível iniciar a conexão", ex.Message);
         }
     }
 
@@ -183,7 +176,7 @@ public partial class SessionView : UserControl, IDisposable
             rdp.CreateControl();
             _rdp = rdp;
             HookEvents(rdp);
-            Log.Info($"Controle RDP criado: visível={rdp.Visible} host={RdpHost.IsVisible} tamanho={rdp.Width}x{rdp.Height}");
+            Log.Info($"RDP control created: visible={rdp.Visible} host={RdpHost.IsVisible} size={rdp.Width}x{rdp.Height}");
 
             var (w, h) = ComputeDesktopSize(record);
             _lastW = w;
@@ -201,14 +194,14 @@ public partial class SessionView : UserControl, IDisposable
             var adv = rdp.AdvancedSettings9;
             adv.RDPPort = record.Port;
             adv.EnableCredSspSupport = true;          // NLA
-            adv.AuthenticationLevel = 2;              // avisa se o certificado não for confiável
-            adv.SmartSizing = record.Display == DisplayMode.Personalizada;
+            adv.AuthenticationLevel = 2;              // warn on untrusted certificate
+            adv.SmartSizing = record.Display == DisplayMode.Custom;
             adv.EnableAutoReconnect = true;
             adv.MaxReconnectAttempts = 20;
-            adv.keepAliveInterval = 30000;            // evita queda por inatividade em NAT/firewall
+            adv.keepAliveInterval = 30000;
             adv.BitmapPersistence = 1;
             adv.Compress = 1;
-            adv.NetworkConnectionType = 7;            // detectar automaticamente
+            adv.NetworkConnectionType = 7;            // auto-detect
             adv.BandwidthDetection = true;
             adv.RedirectClipboard = record.RedirectClipboard;
             adv.RedirectDrives = record.RedirectDrives;
@@ -235,11 +228,11 @@ public partial class SessionView : UserControl, IDisposable
             {
                 ns.AllowCredentialSaving = false;
                 ns.PromptForCredentials = false;
-                ns.AllowPromptingForCredentials = true;   // se a senha estiver errada/ausente, o Windows pede
+                ns.AllowPromptingForCredentials = true;
                 ns.NegotiateSecurityLayer = true;
                 ns.ShowRedirectionWarningDialog = false;
-                ns.UseMultimon = record.Multimon && record.Display == DisplayMode.TelaCheia;
-                ns.ConnectionBarText = record.Name; // barra da tela cheia mostra o nome, não o IP
+                ns.UseMultimon = record.Multimon && record.Display == DisplayMode.FullScreen;
+                ns.ConnectionBarText = record.Name;
             }
 
             if (ocx is IMsRdpExtendedSettings ext)
@@ -253,29 +246,29 @@ public partial class SessionView : UserControl, IDisposable
                 }
                 catch (Exception ex)
                 {
-                    Log.Warn("Servidor/cliente não aceitou fator de escala", ex);
+                    Log.Warn("Scale factor was not accepted", ex);
                 }
             }
 
-            if (record.Display == DisplayMode.TelaCheia) rdp.FullScreen = true;
+            if (record.Display == DisplayMode.FullScreen) rdp.FullScreen = true;
 
-            Log.Info($"Conectando em {record.Name} ({_vm.Server.Address}) {w}x{h} escala {ScaleFactor}%");
+            Log.Info($"Connecting to {record.Name} ({_vm.Server.Address}) {w}x{h} scale {ScaleFactor}%");
             rdp.Connect();
         }
         catch (Exception ex)
         {
-            Log.Error("Falha ao iniciar a sessão RDP", ex);
-            _vm.SetState(SessionState.Erro, "Não foi possível iniciar a conexão", ex.Message);
+            Log.Error("Failed to start the RDP session", ex);
+            _vm.SetState(SessionState.Error, "Não foi possível iniciar a conexão", ex.Message);
         }
     }
 
     (int W, int H) ComputeDesktopSize(ServerRecord record)
     {
-        if (record.Display == DisplayMode.Personalizada)
+        if (record.Display == DisplayMode.Custom)
             return (Even(Math.Clamp(record.CustomWidth, 640, 8192)), Math.Clamp(record.CustomHeight, 480, 8192));
 
         var screen = WinForms.Screen.FromControl(_panel);
-        if (record.Display == DisplayMode.TelaCheia)
+        if (record.Display == DisplayMode.FullScreen)
             return (Even(screen.Bounds.Width), screen.Bounds.Height);
 
         int w = _panel.ClientSize.Width, h = _panel.ClientSize.Height;
@@ -295,14 +288,14 @@ public partial class SessionView : UserControl, IDisposable
     {
         rdp.OnConnecting += (s, _) =>
         {
-            if (IsCurrent(s)) _vm.SetState(SessionState.Conectando, "Conectando…", _vm.Server.DisplayAddress);
+            if (IsCurrent(s)) _vm.SetState(SessionState.Connecting, "Conectando…", _vm.Server.DisplayAddress);
         };
 
         rdp.OnConnected += (s, _) =>
         {
             if (!IsCurrent(s)) return;
             HideCover();
-            _vm.SetState(SessionState.Conectado, "Conectado");
+            _vm.SetState(SessionState.Connected, "Conectado");
             Dispatcher.InvokeAsync(FocusRdp, DispatcherPriority.Background);
         };
 
@@ -311,10 +304,9 @@ public partial class SessionView : UserControl, IDisposable
             if (!IsCurrent(s)) return;
             HideCover();
             _loggedIn = true;
-            Log.Info($"Login concluído em {_vm.Server.Name} (visível={_rdp?.Visible} host={RdpHost.IsVisible})");
+            Log.Info($"Login complete on {_vm.Server.Name} (visible={_rdp?.Visible} host={RdpHost.IsVisible})");
             _main.MarkConnected(_vm.Server);
             _thumbTimer.Start();
-            // a área pode ter mudado de tamanho durante o login
             _resizeTimer.Stop();
             _resizeTimer.Start();
         };
@@ -324,19 +316,19 @@ public partial class SessionView : UserControl, IDisposable
         rdp.OnFatalError += (s, e) =>
         {
             if (!IsCurrent(s)) return;
-            Log.Error($"Erro fatal RDP {e.errorCode} em {_vm.Server.Name}");
-            _vm.SetState(SessionState.Erro, "Erro no cliente RDP", $"Código {e.errorCode}. Tente reconectar.");
+            Log.Error($"RDP fatal error {e.errorCode} on {_vm.Server.Name}");
+            _vm.SetState(SessionState.Error, "Erro no cliente RDP", $"Código {e.errorCode}. Tente reconectar.");
         };
 
         rdp.OnAutoReconnecting2 += (s, e) =>
         {
             if (!IsCurrent(s)) return;
-            _vm.SetState(SessionState.Reconectando, "Reconectando…", $"Tentativa {e.attemptCount} de {e.maxAttemptCount}");
+            _vm.SetState(SessionState.Reconnecting, "Reconectando…", $"Tentativa {e.attemptCount} de {e.maxAttemptCount}");
         };
 
         rdp.OnAutoReconnected += (s, _) =>
         {
-            if (IsCurrent(s)) _vm.SetState(SessionState.Conectado, "Conectado");
+            if (IsCurrent(s)) _vm.SetState(SessionState.Connected, "Conectado");
         };
 
         rdp.OnRequestContainerMinimize += (s, _) =>
@@ -348,12 +340,12 @@ public partial class SessionView : UserControl, IDisposable
 
         rdp.OnLogonError += (s, e) =>
         {
-            if (IsCurrent(s)) Log.Info($"Logon error {e.lError} em {_vm.Server.Name}");
+            if (IsCurrent(s)) Log.Info($"Logon error {e.lError} on {_vm.Server.Name}");
         };
 
         rdp.OnWarning += (s, e) =>
         {
-            if (IsCurrent(s)) Log.Info($"Aviso RDP {e.warningCode} em {_vm.Server.Name}");
+            if (IsCurrent(s)) Log.Info($"RDP warning {e.warningCode} on {_vm.Server.Name}");
         };
     }
 
@@ -361,7 +353,7 @@ public partial class SessionView : UserControl, IDisposable
     {
         if (!_cover.Visible) return;
         _cover.Visible = false;
-        try { _rdp?.Invalidate(true); } catch { /* ignore */ }
+        try { _rdp?.Invalidate(true); } catch { }
     }
 
     void OnDisconnected(object? sender, IMsTscAxEvents_OnDisconnectedEvent e)
@@ -373,7 +365,8 @@ public partial class SessionView : UserControl, IDisposable
 
         if (_closing)
         {
-            FinishClose();
+            // Let the ActiveX return from its own event before the tab disposes it.
+            Dispatcher.BeginInvoke(FinishClose, DispatcherPriority.Background);
             return;
         }
 
@@ -385,27 +378,25 @@ public partial class SessionView : UserControl, IDisposable
         }
         catch
         {
-            // sem descrição
         }
-        Log.Info($"Desconectado de {_vm.Server.Name}: motivo {reason} — {description}");
+        Log.Info($"Disconnected from {_vm.Server.Name}: reason {reason} - {description}");
 
-        // 1 = desconexão local, 2 = pelo usuário remoto, 3 = pelo servidor
+        // 1 = local disconnect, 2 = remote user, 3 = server
         if (reason is 1 or 2 or 3)
         {
-            _vm.SetState(SessionState.Desconectado, "Sessão encerrada",
+            _vm.SetState(SessionState.Disconnected, "Sessão encerrada",
                 string.IsNullOrWhiteSpace(description) ? "A sessão remota foi desconectada." : description);
             return;
         }
 
         var friendly = FriendlyError(reason);
         if (friendly is { } f)
-            _vm.SetState(SessionState.Erro, f.Title, $"{f.Detail}\n(código {reason})");
+            _vm.SetState(SessionState.Error, f.Title, $"{f.Detail}\n(código {reason})");
         else
-            _vm.SetState(SessionState.Erro, "Não foi possível conectar",
+            _vm.SetState(SessionState.Error, "Não foi possível conectar",
                 string.IsNullOrWhiteSpace(description) ? $"Código {reason}." : $"{description}\n(código {reason})");
     }
 
-    /// <summary>Mensagens em português para os códigos de desconexão mais comuns do RDP.</summary>
     static (string Title, string Detail)? FriendlyError(int reason) => reason switch
     {
         516 or 520 => ("O servidor não respondeu",
@@ -422,13 +413,11 @@ public partial class SessionView : UserControl, IDisposable
         _ => null,
     };
 
-    // ===================== Tamanho dinâmico =====================
-
     void ApplyResize()
     {
         var rdp = _rdp;
         if (rdp == null || !_loggedIn || _disposed) return;
-        if (_vm.Server.Record.Display != DisplayMode.AjustarJanela) return;
+        if (_vm.Server.Record.Display != DisplayMode.FitWindow) return;
         if (!_dynamicResize) return;
 
         try
@@ -452,16 +441,16 @@ public partial class SessionView : UserControl, IDisposable
             _lastW = w;
             _lastH = h;
             _resizeFailures = 0;
+            _resizeTimer.Interval = TimeSpan.FromMilliseconds(450);
         }
         catch (Exception ex)
         {
             _resizeFailures++;
             if (_resizeFailures >= 3)
             {
-                // Servidor sem suporte a resolução dinâmica: escala a imagem
-                Log.Info($"Resolução dinâmica indisponível em {_vm.Server.Name}; usando ajuste de imagem. {ex.Message}");
+                Log.Info($"Dynamic resolution unavailable on {_vm.Server.Name}; falling back to smart sizing. {ex.Message}");
                 _dynamicResize = false;
-                try { rdp.AdvancedSettings9.SmartSizing = true; } catch { /* ignore */ }
+                try { rdp.AdvancedSettings9.SmartSizing = true; } catch { }
             }
             else
             {
@@ -470,8 +459,6 @@ public partial class SessionView : UserControl, IDisposable
             }
         }
     }
-
-    // ===================== Ações =====================
 
     void FocusRdp()
     {
@@ -483,7 +470,6 @@ public partial class SessionView : UserControl, IDisposable
         }
         catch
         {
-            // ignore
         }
     }
 
@@ -495,7 +481,7 @@ public partial class SessionView : UserControl, IDisposable
         }
         catch (Exception ex)
         {
-            Log.Warn("Falha ao entrar em tela cheia", ex);
+            Log.Warn("Failed to enter full screen", ex);
         }
     }
 
@@ -508,7 +494,7 @@ public partial class SessionView : UserControl, IDisposable
         }
         catch (Exception ex)
         {
-            Log.Warn("Falha ao capturar miniatura", ex);
+            Log.Warn("Failed to capture thumbnail", ex);
         }
     }
 
@@ -525,7 +511,6 @@ public partial class SessionView : UserControl, IDisposable
             if (_rdp != null && _rdp.Connected != 0)
             {
                 _rdp.Disconnect();
-                // Se o evento de desconexão não vier, fecha mesmo assim
                 var fallback = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
                 fallback.Tick += (_, _) =>
                 {
@@ -538,7 +523,7 @@ public partial class SessionView : UserControl, IDisposable
         }
         catch (Exception ex)
         {
-            Log.Warn("Falha ao desconectar", ex);
+            Log.Warn("Failed to disconnect", ex);
         }
 
         FinishClose();
@@ -563,7 +548,6 @@ public partial class SessionView : UserControl, IDisposable
         }
         catch
         {
-            // ignore
         }
         try
         {
@@ -572,7 +556,7 @@ public partial class SessionView : UserControl, IDisposable
         }
         catch (Exception ex)
         {
-            Log.Warn("Falha ao descartar controle RDP", ex);
+            Log.Warn("Failed to dispose the RDP control", ex);
         }
     }
 
@@ -596,7 +580,7 @@ public partial class SessionView : UserControl, IDisposable
         }
         catch (Exception ex)
         {
-            Log.Warn("Falha ao descartar host da sessão", ex);
+            Log.Warn("Failed to dispose the session host", ex);
         }
     }
 }

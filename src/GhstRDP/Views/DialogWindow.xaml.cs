@@ -15,7 +15,6 @@ public partial class DialogWindow : Window
 
         if (secondary == null)
         {
-            // Só "OK": um botão ocupando metade, à direita (padrão do ContentDialog)
             ButtonsGrid.Children.Remove(SecondaryButton);
             ButtonsGrid.Columns = 2;
             ButtonsGrid.Children.Insert(0, new FrameworkElement());

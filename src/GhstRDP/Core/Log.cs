@@ -3,14 +3,14 @@ using System.Text;
 
 namespace GhstRDP.Core;
 
-/// <summary>Log simples em arquivo (um por dia). Nunca lança exceção.</summary>
+/// <summary>Daily file log. Never throws.</summary>
 public static class Log
 {
     static readonly object Gate = new();
 
     public static void Info(string message) => Write("INFO", message, null);
     public static void Warn(string message, Exception? ex = null) => Write("WARN", message, ex);
-    public static void Error(string message, Exception? ex = null) => Write("ERRO", message, ex);
+    public static void Error(string message, Exception? ex = null) => Write("ERROR", message, ex);
 
     public static string CurrentFile => Path.Combine(Paths.LogsDir, $"ghst-rdp-{DateTime.Now:yyyyMMdd}.log");
 
@@ -30,7 +30,6 @@ public static class Log
         }
         catch
         {
-            // log nunca derruba o app
         }
     }
 }

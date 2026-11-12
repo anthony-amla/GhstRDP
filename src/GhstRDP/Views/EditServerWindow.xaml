@@ -94,8 +94,8 @@
                             <TextBlock Text="Tipo" Style="{StaticResource Text.Label}" />
                             <ComboBox SelectedValuePath="Tag" SelectedValue="{Binding Kind}" MinWidth="0">
                                 <ComboBoxItem Content="VPS" Tag="{x:Static core:ServerKind.Vps}" />
-                                <ComboBoxItem Content="Dedicado" Tag="{x:Static core:ServerKind.Dedicado}" />
-                                <ComboBoxItem Content="Outro" Tag="{x:Static core:ServerKind.Outro}" />
+                                <ComboBoxItem Content="Dedicado" Tag="{x:Static core:ServerKind.Dedicated}" />
+                                <ComboBoxItem Content="Outro" Tag="{x:Static core:ServerKind.Other}" />
                             </ComboBox>
                         </StackPanel>
                         <StackPanel Grid.Column="2" Style="{StaticResource Field}">
@@ -155,17 +155,17 @@
                         <StackPanel Style="{StaticResource Field}">
                             <TextBlock Text="Abrir" Style="{StaticResource Text.Label}" />
                             <ComboBox SelectedValuePath="Tag" SelectedValue="{Binding OpenMode}" MinWidth="0">
-                                <ComboBoxItem Content="{Binding AppDefaultLabel}" Tag="{x:Static core:OpenMode.Padrao}" />
-                                <ComboBoxItem Content="No Ghst, em aba" Tag="{x:Static core:OpenMode.Embutido}" />
-                                <ComboBoxItem Content="No mstsc" Tag="{x:Static core:OpenMode.Externo}" />
+                                <ComboBoxItem Content="{Binding AppDefaultLabel}" Tag="{x:Static core:OpenMode.Default}" />
+                                <ComboBoxItem Content="No Ghst, em aba" Tag="{x:Static core:OpenMode.Embedded}" />
+                                <ComboBoxItem Content="No mstsc" Tag="{x:Static core:OpenMode.External}" />
                             </ComboBox>
                         </StackPanel>
                         <StackPanel Grid.Column="2" Style="{StaticResource Field}">
                             <TextBlock Text="Tela" Style="{StaticResource Text.Label}" />
                             <ComboBox SelectedValuePath="Tag" SelectedValue="{Binding Display}" MinWidth="0">
-                                <ComboBoxItem Content="Ajustar à janela" Tag="{x:Static core:DisplayMode.AjustarJanela}" />
-                                <ComboBoxItem Content="Tela cheia" Tag="{x:Static core:DisplayMode.TelaCheia}" />
-                                <ComboBoxItem Content="Resolução fixa" Tag="{x:Static core:DisplayMode.Personalizada}" />
+                                <ComboBoxItem Content="Ajustar à janela" Tag="{x:Static core:DisplayMode.FitWindow}" />
+                                <ComboBoxItem Content="Tela cheia" Tag="{x:Static core:DisplayMode.FullScreen}" />
+                                <ComboBoxItem Content="Resolução fixa" Tag="{x:Static core:DisplayMode.Custom}" />
                             </ComboBox>
                         </StackPanel>
                     </Grid>
@@ -190,9 +190,9 @@
                         <StackPanel Grid.Column="2" Style="{StaticResource Field}">
                             <TextBlock Text="Áudio" Style="{StaticResource Text.Label}" />
                             <ComboBox SelectedValuePath="Tag" SelectedValue="{Binding Audio}" MinWidth="0">
-                                <ComboBoxItem Content="Tocar neste PC" Tag="{x:Static core:AudioMode.NestePC}" />
-                                <ComboBoxItem Content="Tocar no servidor" Tag="{x:Static core:AudioMode.NoServidor}" />
-                                <ComboBoxItem Content="Sem áudio" Tag="{x:Static core:AudioMode.Desligado}" />
+                                <ComboBoxItem Content="Tocar neste PC" Tag="{x:Static core:AudioMode.Local}" />
+                                <ComboBoxItem Content="Tocar no servidor" Tag="{x:Static core:AudioMode.Remote}" />
+                                <ComboBoxItem Content="Sem áudio" Tag="{x:Static core:AudioMode.Off}" />
                             </ComboBox>
                         </StackPanel>
                     </Grid>

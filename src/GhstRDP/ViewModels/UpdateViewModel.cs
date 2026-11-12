@@ -7,7 +7,7 @@ using GhstRDP.Core;
 
 namespace GhstRDP.ViewModels;
 
-/// <summary>Atualização automática (Velopack + GitHub Releases).</summary>
+/// <summary>Automatic updates through Velopack and GitHub Releases.</summary>
 public partial class UpdateViewModel : ObservableObject
 {
     readonly MainViewModel _main;
@@ -18,7 +18,6 @@ public partial class UpdateViewModel : ObservableObject
     public UpdateViewModel(MainViewModel main)
     {
         _main = main;
-        // Primeira verificação 20 s depois de abrir; depois a cada 6 h
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
         _timer.Tick += async (_, _) =>
         {
@@ -82,7 +81,7 @@ public partial class UpdateViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            Log.Warn("Falha ao procurar/baixar atualização", ex);
+            Log.Warn("Failed to check for or download update", ex);
             Status = silent ? "" : $"Não foi possível atualizar: {ex.Message}";
         }
         finally
@@ -91,7 +90,7 @@ public partial class UpdateViewModel : ObservableObject
         }
     }
 
-    /// <summary>Fecha o app (pedindo confirmação se houver sessões) e abre a versão nova.</summary>
+    /// <summary>Closes the main window (which may ask to confirm open sessions) and relaunches on the new version.</summary>
     [RelayCommand]
     void RestartNow()
     {
@@ -100,12 +99,12 @@ public partial class UpdateViewModel : ObservableObject
         Application.Current.MainWindow?.Close();
     }
 
-    /// <summary>O usuário cancelou o fechamento: não reabre depois.</summary>
+    /// <summary>Called when the user cancels closing the app, so the update is applied later without a relaunch.</summary>
     public void CancelRelaunch() => _restartRequested = false;
 
     [RelayCommand] void OpenReleases() => OpenUrl(AppInfo.ReleasesPage);
 
-    /// <summary>Chamado no OnExit do app: aplica a versão baixada.</summary>
+    /// <summary>Called on app exit to apply a downloaded update.</summary>
     public void ApplyPendingOnExit()
     {
         if (!IsReady) return;
@@ -116,6 +115,6 @@ public partial class UpdateViewModel : ObservableObject
     static void OpenUrl(string url)
     {
         try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
-        catch (Exception ex) { Log.Warn("Falha ao abrir o navegador", ex); }
+        catch (Exception ex) { Log.Warn("Failed to open browser", ex); }
     }
 }

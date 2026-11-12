@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Threading;
@@ -11,7 +12,7 @@ using GhstRDP.Views;
 
 namespace GhstRDP.ViewModels;
 
-public enum Page { Servidores, Sessoes, Senhas, Configuracoes }
+public enum Page { Servers, Sessions, Passwords, Settings }
 
 public partial class MainViewModel : ObservableObject, IDisposable
 {
@@ -31,7 +32,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _vaultService.Load();
         Vault = new VaultViewModel(this, _vaultService);
         Update = new UpdateViewModel(this);
-        // Fecha o cofre sozinho depois de 5 min sem uso
         _vaultTimer = new DispatcherTimer(DispatcherPriority.Background, ui) { Interval = TimeSpan.FromSeconds(15) };
         _vaultTimer.Tick += (_, _) => _vaultService.CheckAutoLock();
         _vaultTimer.Start();
@@ -62,7 +62,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         };
         _status.Start();
 
-        // Atualiza textos relativos ("Há 5 min") e o resumo
         _clock = new DispatcherTimer(DispatcherPriority.Background, ui) { Interval = TimeSpan.FromMinutes(1) };
         _clock.Tick += (_, _) =>
         {
@@ -78,39 +77,34 @@ public partial class MainViewModel : ObservableObject, IDisposable
             IsToastVisible = false;
         };
 
-        CurrentPage = Page.Servidores;
+        CurrentPage = Page.Servers;
     }
 
     public AppSettings Settings => _store.Data.Settings;
 
-    // ================= Coleções =================
     public ObservableCollection<ServerItemViewModel> Servers { get; } = new();
     public ListCollectionView ServersView { get; }
     public ObservableCollection<ServerItemViewModel> Favorites { get; } = new();
     public ObservableCollection<ServerItemViewModel> Recents { get; } = new();
     public ObservableCollection<SessionViewModel> Sessions { get; } = new();
 
-    // ================= Navegação =================
     [ObservableProperty] private Page _currentPage;
     [ObservableProperty] private bool _isNavExpanded;
     [ObservableProperty] private bool _isListView;
 
     partial void OnCurrentPageChanged(Page value)
     {
-        if (value == Page.Sessoes) SelectedSession?.RequestFocus();
-        if (value == Page.Senhas) Vault.Refresh();
+        if (value == Page.Sessions) SelectedSession?.RequestFocus();
+        if (value == Page.Passwords) Vault.Refresh();
     }
 
-    // ================= Atualização =================
     public UpdateViewModel Update { get; }
-
-    // ================= Cofre de senhas =================
     public VaultViewModel Vault { get; }
 
     /// <summary>
-    /// Se o cofre tem PIN, pede o PIN antes de mostrar/copiar senhas (inclusive as dos servidores).
-    /// Sem PIN configurado, libera como antes.
+    /// Asks for the vault PIN before revealing or copying a password, if a PIN is configured.
     /// </summary>
+    /// <returns>True when access is allowed (no PIN set, already unlocked, or the PIN was entered).</returns>
     public bool EnsureVaultUnlocked()
     {
         if (!_vaultService.IsConfigured) return true;
@@ -127,18 +121,20 @@ public partial class MainViewModel : ObservableObject, IDisposable
         try { _vaultService.Save(); }
         catch (Exception ex)
         {
-            Log.Error("Falha ao salvar o cofre", ex);
+            Log.Error("Failed to save the vault", ex);
             Dialogs.Error(Application.Current.MainWindow, "Não foi possível salvar o cofre", ex.Message);
         }
     }
 
-    /// <summary>Adicionar (entry null) ou editar uma senha do cofre.</summary>
+    /// <summary>Opens the editor to add a vault entry (<paramref name="entry"/> null) or edit an existing one.</summary>
+    /// <param name="serverId">Server preselected in the editor, if any.</param>
+    /// <param name="machine">Free-text machine name preselected when there is no linked server.</param>
     public void EditVaultEntry(VaultEntry? entry, Guid? serverId, string? machine = null)
     {
         if (!EnsureVaultUnlocked()) return;
         if (!_vaultService.IsConfigured)
         {
-            CurrentPage = Page.Senhas;
+            CurrentPage = Page.Passwords;
             ShowToast("Crie um PIN para usar o cofre");
             return;
         }
@@ -149,6 +145,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var plain = entry == null ? null : _vaultService.Unprotect(entry.Secret);
         var editor = new VaultEntryEditViewModel(entry, plain, machines, serverId, machine);
         if (!Dialogs.EditVaultEntry(Application.Current.MainWindow, editor)) return;
+        if (!EnsureVaultUnlocked()) return;
 
         try
         {
@@ -161,7 +158,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            Log.Error("Falha ao guardar senha no cofre", ex);
+            Log.Error("Failed to store vault entry", ex);
             Dialogs.Error(Application.Current.MainWindow, "Não foi possível guardar a senha", ex.Message);
         }
     }
@@ -183,7 +180,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand] void ShowList() => IsListView = true;
     [RelayCommand] void GoTo(Page page) => CurrentPage = page;
 
-    // ================= Busca e filtros =================
     [ObservableProperty] private string _search = "";
     [ObservableProperty] private TypeFilter _typeFilter;
     [ObservableProperty] private StatusFilter _statusFilter;
@@ -194,11 +190,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public ObservableCollection<ClientFilter> Clients { get; } = new();
     public bool HasClients => Clients.Count > 0;
     public bool HasVps => Servers.Any(s => s.Kind == ServerKind.Vps);
-    public bool HasDedicado => Servers.Any(s => s.Kind == ServerKind.Dedicado);
-    public bool HasOutro => Servers.Any(s => s.Kind == ServerKind.Outro);
+    public bool HasDedicated => Servers.Any(s => s.Kind == ServerKind.Dedicated);
+    public bool HasOther => Servers.Any(s => s.Kind == ServerKind.Other);
 
-    public bool HasActiveFilter => !string.IsNullOrWhiteSpace(Search) || TypeFilter != TypeFilter.Todos
-                                   || StatusFilter != StatusFilter.Todos || FavoritesOnly || ClientFilter != null;
+    public bool HasActiveFilter => !string.IsNullOrWhiteSpace(Search) || TypeFilter != TypeFilter.All
+                                   || StatusFilter != StatusFilter.All || FavoritesOnly || ClientFilter != null;
 
     public string ResultText => FilteredCount == Servers.Count
         ? (Servers.Count == 1 ? "1 servidor" : $"{Servers.Count} servidores")
@@ -225,8 +221,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     void ClearFilters()
     {
         Search = "";
-        TypeFilter = TypeFilter.Todos;
-        StatusFilter = StatusFilter.Todos;
+        TypeFilter = TypeFilter.All;
+        StatusFilter = StatusFilter.All;
         FavoritesOnly = false;
         ClientFilter = null;
     }
@@ -235,9 +231,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         if (obj is not ServerItemViewModel s) return false;
 
-        if (TypeFilter != TypeFilter.Todos)
+        if (TypeFilter != TypeFilter.All)
         {
-            var kind = TypeFilter switch { TypeFilter.Vps => ServerKind.Vps, TypeFilter.Dedicado => ServerKind.Dedicado, _ => ServerKind.Outro };
+            var kind = TypeFilter switch { TypeFilter.Vps => ServerKind.Vps, TypeFilter.Dedicated => ServerKind.Dedicated, _ => ServerKind.Other };
             if (s.Kind != kind) return false;
         }
         if (StatusFilter == StatusFilter.Online && s.Status != ServerStatus.Online) return false;
@@ -263,7 +259,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(HasActiveFilter));
     }
 
-    /// <summary>Remonta os chips de cliente (com contagem e cor) e os tipos disponíveis.</summary>
     void RebuildChips()
     {
         Clients.Clear();
@@ -279,14 +274,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (ClientFilter != null && !Clients.Any(c => c.IsSelected)) ClientFilter = null;
         OnPropertyChanged(nameof(HasClients));
         OnPropertyChanged(nameof(HasVps));
-        OnPropertyChanged(nameof(HasDedicado));
-        OnPropertyChanged(nameof(HasOutro));
+        OnPropertyChanged(nameof(HasDedicated));
+        OnPropertyChanged(nameof(HasOther));
     }
 
     /// <summary>
-    /// Cor do cliente na paleta. Na primeira vez escolhe a cor menos usada (clientes diferentes
-    /// ficam com cores diferentes) e salva, para nunca mudar depois.
+    /// Palette color for a client. The first time a client is seen it gets the least used color,
+    /// which is persisted so it stays stable.
     /// </summary>
+    /// <returns>Index into <see cref="TagPalette"/>, or -1 when the client name is empty.</returns>
     public int ClientColorIndex(string? client)
     {
         var key = (client ?? "").Trim().ToLowerInvariant();
@@ -314,7 +310,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         .OrderBy(g => g, StringComparer.OrdinalIgnoreCase)
         .ToList();
 
-    /// <summary>Recalcula favoritos, recentes, chips e contagens.</summary>
     void RefreshDerived()
     {
         Favorites.Clear();
@@ -338,7 +333,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public bool HasServers => Servers.Count > 0;
     public bool HasFavorites => Favorites.Count > 0;
     public bool HasRecents => Recents.Count > 0;
-    /// <summary>Início sem favoritos nem recentes: mostra todos os servidores.</summary>
+    /// <summary>True when the home page has no favorites or recents, so it lists every server instead.</summary>
     public bool ShowAllOnHome => HasServers && !HasFavorites && !HasRecents;
     public int ServerCount => Servers.Count;
     public int SessionCount => Sessions.Count;
@@ -365,7 +360,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    // ================= Sessões =================
     [ObservableProperty] private SessionViewModel? _selectedSession;
 
     partial void OnSelectedSessionChanging(SessionViewModel? oldValue, SessionViewModel? newValue)
@@ -381,8 +375,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public void Connect(ServerItemViewModel item, OpenMode? forced = null)
     {
-        var mode = forced ?? (item.Record.OpenMode == OpenMode.Padrao ? Settings.DefaultOpenMode : item.Record.OpenMode);
-        if (mode == OpenMode.Externo) OpenExternal(item);
+        var mode = forced ?? (item.Record.OpenMode == OpenMode.Default ? Settings.DefaultOpenMode : item.Record.OpenMode);
+        if (mode == OpenMode.External) OpenExternal(item);
         else OpenEmbedded(item);
     }
 
@@ -396,7 +390,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            Log.Error("Falha ao abrir mstsc", ex);
+            Log.Error("Failed to launch mstsc", ex);
             Dialogs.Error(Application.Current.MainWindow, "Não foi possível abrir o mstsc", ex.Message);
         }
     }
@@ -407,7 +401,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (existing != null)
         {
             SelectedSession = existing;
-            CurrentPage = Page.Sessoes;
+            CurrentPage = Page.Sessions;
             if (existing.CanReconnect) existing.ReconnectCommand.Execute(null);
             return;
         }
@@ -415,13 +409,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var session = new SessionViewModel(item, this);
         Sessions.Add(session);
         item.HasOpenSession = true;
-        CurrentPage = Page.Sessoes;
+        CurrentPage = Page.Sessions;
         SelectedSession = session;
     }
 
     public void CloseSession(SessionViewModel session) => session.RequestClose();
 
-    /// <summary>Chamado pela view quando a sessão terminou de desconectar.</summary>
+    /// <summary>Called by the session view once the connection has fully shut down.</summary>
     internal void OnSessionClosed(SessionViewModel session)
     {
         var index = Sessions.IndexOf(session);
@@ -431,11 +425,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         session.Server.HasOpenSession = Sessions.Any(s => ReferenceEquals(s.Server, session.Server));
         if (wasSelected)
             SelectedSession = Sessions.Count == 0 ? null : Sessions[Math.Min(index, Sessions.Count - 1)];
-        if (Sessions.Count == 0 && CurrentPage == Page.Sessoes) CurrentPage = Page.Servidores;
+        if (Sessions.Count == 0 && CurrentPage == Page.Sessions) CurrentPage = Page.Servers;
         SessionsChanged?.Invoke();
     }
 
-    /// <summary>Disparado quando a lista de sessões muda por fechamento (usado no fechamento do app).</summary>
+    /// <summary>Raised after a closed session is removed from <see cref="Sessions"/>.</summary>
     public event Action? SessionsChanged;
 
     public void MarkConnected(ServerItemViewModel item)
@@ -447,7 +441,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         RefreshDerived();
     }
 
-    // ================= CRUD =================
     [RelayCommand]
     void AddServer() => OpenEditor(null, null);
 
@@ -467,10 +460,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     void OpenEditor(ServerItemViewModel? item, ServerRecord? template)
     {
-        var groups = GroupNames();
         var editor = item == null
-            ? EditServerViewModel.ForNew(groups, Settings.DefaultOpenMode, template)
-            : EditServerViewModel.ForEdit(item.Record, groups, Settings.DefaultOpenMode);
+            ? EditServerViewModel.ForNew(Settings.DefaultOpenMode, template)
+            : EditServerViewModel.ForEdit(item.Record, Settings.DefaultOpenMode);
         editor.RevealGate = EnsureVaultUnlocked;
 
         if (!Dialogs.EditServer(Application.Current.MainWindow, editor)) return;
@@ -487,10 +479,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         else
         {
+            var previous = item.Record;
             var idx = _store.Data.Servers.FindIndex(s => s.Id == record.Id);
             if (idx >= 0) _store.Data.Servers[idx] = record;
             else _store.Data.Servers.Add(record);
             item.Update(record);
+            DropStaleCredential(previous, record);
             if (Settings.StatusCheck) _ = _status.CheckAsync(item);
             ShowToast("Alterações salvas");
         }
@@ -502,7 +496,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
         RefreshDerived();
     }
 
-    /// <summary>Copia (ou remove) o banner escolhido no cadastro para a pasta de banners.</summary>
+    /// <summary>Removes the mstsc credential saved for the old login once host, user or password changed.</summary>
+    void DropStaleCredential(ServerRecord previous, ServerRecord current)
+    {
+        var sameLogin = string.Equals(previous.Host.Trim(), current.Host.Trim(), StringComparison.OrdinalIgnoreCase)
+            && previous.Username == current.Username
+            && previous.Domain == current.Domain
+            && previous.PasswordProtected == current.PasswordProtected;
+        if (sameLogin) return;
+        if (Servers.Any(s => s.Id != current.Id && string.Equals(s.Host.Trim(), previous.Host.Trim(), StringComparison.OrdinalIgnoreCase))) return;
+        CredentialStore.DeleteRdp(previous.Host);
+    }
+
     void ApplyBanner(ServerRecord record, EditServerViewModel editor)
     {
         if (!editor.BannerChanged) return;
@@ -520,12 +525,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            Log.Error("Falha ao salvar o banner", ex);
+            Log.Error("Failed to save banner", ex);
             Dialogs.Error(Application.Current.MainWindow, "Não foi possível salvar o banner", ex.Message);
         }
     }
 
-    /// <summary>Usa o mesmo banner em todos os servidores do mesmo cliente.</summary>
     void ApplyBannerToClient(ServerRecord source)
     {
         var sourcePath = Banners.PathFor(source);
@@ -546,7 +550,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             }
             catch (Exception ex)
             {
-                Log.Warn($"Falha ao copiar banner para {other.Name}", ex);
+                Log.Warn($"Failed to copy banner to {other.Name}", ex);
             }
         }
         if (count > 0) ShowToast($"Banner aplicado em {count + 1} servidores de {client}");
@@ -564,7 +568,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _store.Data.Servers.RemoveAll(s => s.Id == item.Id);
         Servers.Remove(item);
 
-        // Senhas do cofre ligadas a esse servidor ficam guardadas com o nome dele
         var orphans = _vaultService.Data.Entries.Where(e => e.ServerId == item.Id).ToList();
         foreach (var e in orphans)
         {
@@ -573,7 +576,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         if (orphans.Count > 0) SaveVault();
 
-        // Só remove a credencial do Windows se nenhum outro servidor usa o mesmo host
+        // Windows credentials are keyed by host, so another server may still rely on it.
         if (!Servers.Any(s => string.Equals(s.Host, item.Host, StringComparison.OrdinalIgnoreCase)))
             CredentialStore.DeleteRdp(item.Host);
         MstscLauncher.DeleteRdpFile(item.Id);
@@ -598,13 +601,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         RefreshDerived();
     }
 
-    // ================= Clipboard =================
-    DispatcherTimer? _clipboardClear;
+    DispatcherTimer? _clipboardClearTimer;
 
     public void CopyText(string text, string toast)
     {
         if (string.IsNullOrEmpty(text)) return;
-        if (TrySetClipboard(text)) ShowToast(toast);
+        if (TrySetClipboard(text, isSecret: false)) ShowToast(toast);
     }
 
     public void CopyPassword(ServerItemViewModel item)
@@ -615,45 +617,57 @@ public partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
         if (!EnsureVaultUnlocked()) return;
-        var pwd = Secrets.Unprotect(item.Record.PasswordProtected);
-        if (string.IsNullOrEmpty(pwd))
+        var password = Secrets.Unprotect(item.Record.PasswordProtected);
+        if (string.IsNullOrEmpty(password))
         {
             ShowToast("Este servidor não tem senha salva");
             return;
         }
-        CopySecret(pwd, "Senha copiada — some da área de transferência em 30 s");
+        CopySecret(password, "Senha copiada — some da área de transferência em 30 s");
     }
 
-    /// <summary>Copia um segredo e limpa a área de transferência depois de 30 s (se ainda for ele).</summary>
-    public void CopySecret(string pwd, string toast)
+    /// <summary>Copies a secret and clears the clipboard after 30 s, if it still holds that secret.</summary>
+    /// <param name="toast">Message shown once the copy succeeds.</param>
+    public void CopySecret(string secret, string toast)
     {
-        if (!TrySetClipboard(pwd)) return;
+        if (!TrySetClipboard(secret, isSecret: true)) return;
         ShowToast(toast);
 
-        _clipboardClear?.Stop();
-        _clipboardClear = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
-        _clipboardClear.Tick += (_, _) =>
+        _clipboardClearTimer?.Stop();
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        timer.Tick += (_, _) =>
         {
-            _clipboardClear?.Stop();
+            timer.Stop();
             try
             {
-                if (Clipboard.ContainsText() && Clipboard.GetText() == pwd) Clipboard.Clear();
+                if (Clipboard.ContainsText() && Clipboard.GetText() == secret) Clipboard.Clear();
             }
             catch
             {
-                // clipboard ocupado por outro app
+                // clipboard locked by another process
             }
         };
-        _clipboardClear.Start();
+        _clipboardClearTimer = timer;
+        timer.Start();
     }
 
-    static bool TrySetClipboard(string text)
+    static bool TrySetClipboard(string text, bool isSecret)
     {
+        var data = new DataObject();
+        data.SetText(text);
+        if (isSecret)
+        {
+            // Keeps passwords out of Win+V history and cloud clipboard sync.
+            data.SetData("ExcludeClipboardContentFromMonitorProcessing", new MemoryStream(new byte[4]));
+            data.SetData("CanIncludeInClipboardHistory", new MemoryStream(BitConverter.GetBytes(0)));
+            data.SetData("CanUploadToCloudClipboard", new MemoryStream(BitConverter.GetBytes(0)));
+        }
+
         for (var i = 0; i < 5; i++)
         {
             try
             {
-                Clipboard.SetDataObject(text, false);
+                Clipboard.SetDataObject(data, false);
                 return true;
             }
             catch
@@ -664,7 +678,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return false;
     }
 
-    // ================= Toast =================
     [ObservableProperty] private string _toastText = "";
     [ObservableProperty] private bool _isToastVisible;
 
@@ -676,13 +689,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _toastTimer.Start();
     }
 
-    // ================= Configurações =================
     public OpenMode DefaultOpenMode
     {
         get => Settings.DefaultOpenMode;
         set
         {
-            if (value == OpenMode.Padrao || Settings.DefaultOpenMode == value) return;
+            if (value == OpenMode.Default || Settings.DefaultOpenMode == value) return;
             Settings.DefaultOpenMode = value;
             OnPropertyChanged();
             SaveQuiet();
@@ -720,14 +732,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
             Settings.StatusCheck = value;
             _status.Enabled = value;
             if (value) _ = _status.CheckAllAsync();
-            else foreach (var s in Servers) s.Status = ServerStatus.Desconhecido;
+            else foreach (var s in Servers) s.Status = ServerStatus.Unknown;
             OnPropertyChanged();
             OnPropertyChanged(nameof(Summary));
             SaveQuiet();
         }
     }
 
-    /// <summary>Modo sigiloso: IPs ocultos na tela (menos na edição) e prévias pixelizadas.</summary>
+    /// <summary>Hides server addresses everywhere except the editor and pixelates session thumbnails.</summary>
     public bool PrivacyMode
     {
         get => Settings.PrivacyMode;
@@ -739,8 +751,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             foreach (var s in Servers) s.RefreshPrivacy();
             if (value)
             {
-                // Mensagens de sessão já na tela também perdem o IP
-                foreach (var session in Sessions)
+                foreach (var session in Sessions.Where(s => !string.IsNullOrEmpty(s.Server.Address)))
                     session.StatusDetail = session.StatusDetail.Replace(session.Server.Address, session.Server.DisplayAddress);
             }
             ShowToast(value ? "Modo sigiloso ligado — IPs ocultos" : "Modo sigiloso desligado");
@@ -756,6 +767,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         set
         {
             Settings.Thumbnails = value;
+            if (!value) Thumbnails.DeleteAll();
             OnPropertyChanged();
             SaveQuiet();
         }
@@ -768,14 +780,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
     void OpenDataFolder()
     {
         try { Process.Start(new ProcessStartInfo("explorer.exe", $"\"{Paths.RoamingDir}\"") { UseShellExecute = true }); }
-        catch (Exception ex) { Log.Warn("Falha ao abrir pasta", ex); }
+        catch (Exception ex) { Log.Warn("Failed to open data folder", ex); }
     }
 
     [RelayCommand]
     void OpenLogsFolder()
     {
         try { Process.Start(new ProcessStartInfo("explorer.exe", $"\"{Paths.LogsDir}\"") { UseShellExecute = true }); }
-        catch (Exception ex) { Log.Warn("Falha ao abrir pasta", ex); }
+        catch (Exception ex) { Log.Warn("Failed to open logs folder", ex); }
     }
 
     [RelayCommand]
@@ -787,13 +799,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(Summary));
     }
 
-    /// <summary>Chamado pelo StatusMonitor via item.SetStatus → atualiza o resumo de vez em quando.</summary>
     DispatcherTimer? _statusRefresh;
 
+    /// <summary>
+    /// Called when a server's status changes. Updates the summary and, when filtering by status,
+    /// refreshes the list after a short debounce.
+    /// </summary>
     public void NotifyStatusChanged()
     {
         OnPropertyChanged(nameof(Summary));
-        if (StatusFilter == StatusFilter.Todos) return;
+        if (StatusFilter == StatusFilter.All) return;
         _statusRefresh ??= CreateStatusRefreshTimer();
         _statusRefresh.Stop();
         _statusRefresh.Start();
@@ -810,7 +825,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return timer;
     }
 
-    // ================= Persistência =================
     void Save()
     {
         try
@@ -819,15 +833,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            Log.Error("Falha ao salvar dados", ex);
+            Log.Error("Failed to save data", ex);
             Dialogs.Error(Application.Current.MainWindow, "Não foi possível salvar", ex.Message);
         }
     }
 
+    /// <summary>Saves without showing an error dialog; failures are only logged.</summary>
     public void SaveQuiet()
     {
         try { _store.Save(); }
-        catch (Exception ex) { Log.Error("Falha ao salvar dados", ex); }
+        catch (Exception ex) { Log.Error("Failed to save data", ex); }
     }
 
     public void Dispose()

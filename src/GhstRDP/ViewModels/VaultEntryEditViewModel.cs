@@ -8,7 +8,7 @@ public sealed record MachineOption(Guid? ServerId, string Name)
     public override string ToString() => Name;
 }
 
-/// <summary>Cadastro/edição de uma senha do cofre.</summary>
+/// <summary>Form state for adding or editing a vault entry.</summary>
 public partial class VaultEntryEditViewModel : ObservableObject
 {
     public VaultEntryEditViewModel(VaultEntry? entry, string? plainPassword, IReadOnlyList<MachineOption> machines, Guid? serverId, string? machine)
@@ -36,7 +36,7 @@ public partial class VaultEntryEditViewModel : ObservableObject
     [ObservableProperty] private string _notes;
     [ObservableProperty] private string _error = "";
 
-    /// <summary>"Outra máquina" escolhida: mostra o campo para digitar o nome.</summary>
+    /// <summary>True when no server is selected, so the user types a machine name instead.</summary>
     public bool IsOtherMachine => SelectedMachine.ServerId == null;
     partial void OnSelectedMachineChanged(MachineOption value) => OnPropertyChanged(nameof(IsOtherMachine));
 
@@ -51,11 +51,12 @@ public partial class VaultEntryEditViewModel : ObservableObject
 
     public void ApplyTo(VaultEntry entry, VaultService vault)
     {
+        var secret = string.IsNullOrEmpty(Password) ? null : vault.Protect(Password);
         entry.ServerId = SelectedMachine.ServerId;
         entry.Machine = IsOtherMachine ? MachineName.Trim() : SelectedMachine.Name;
         entry.Label = (Label ?? "").Trim();
         entry.Username = (Username ?? "").Trim();
-        entry.Secret = string.IsNullOrEmpty(Password) ? null : vault.Protect(Password);
+        entry.Secret = secret;
         entry.Notes = (Notes ?? "").Trim();
         entry.UpdatedAt = DateTime.Now;
     }

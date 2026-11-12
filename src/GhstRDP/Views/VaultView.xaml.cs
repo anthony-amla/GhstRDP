@@ -32,8 +32,8 @@ public partial class VaultView : UserControl
         if (!IsVisible || Vm == null) return;
         Dispatcher.InvokeAsync(() =>
         {
-            if (Vm.State == VaultState.Configurar) NewPin.Focus();
-            else if (Vm.State == VaultState.Bloqueado) UnlockPin.Focus();
+            if (Vm.State == VaultState.Setup) NewPin.Focus();
+            else if (Vm.State == VaultState.Locked) UnlockPin.Focus();
         }, DispatcherPriority.Input);
     }
 
@@ -72,6 +72,6 @@ public partial class VaultView : UserControl
         if (Vm == null) return;
         await Vm.UnlockAsync(UnlockPin.Password);
         UnlockPin.Clear();
-        if (Vm.State == VaultState.Bloqueado) UnlockPin.Focus();
+        if (Vm.State == VaultState.Locked) UnlockPin.Focus();
     }
 }

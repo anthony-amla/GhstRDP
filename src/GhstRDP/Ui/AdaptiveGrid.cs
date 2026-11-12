@@ -4,8 +4,8 @@ using System.Windows.Controls;
 namespace GhstRDP.Ui;
 
 /// <summary>
-/// Grade que sempre preenche a largura: calcula quantas colunas cabem (cada uma com pelo menos
-/// <see cref="MinItemWidth"/>) e estica todas por igual. Sem sobra de espaço à direita.
+/// Wrap panel that fits as many columns of at least <see cref="MinItemWidth"/> as possible
+/// and stretches them to fill the full width.
 /// </summary>
 public sealed class AdaptiveGrid : Panel
 {

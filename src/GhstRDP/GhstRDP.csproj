@@ -19,15 +19,12 @@
     <AssemblyTitle>Ghst RDP</AssemblyTitle>
     <Company>Ghst</Company>
     <Version>1.0.0</Version>
-    <!-- Main próprio (Program.cs) para o Velopack rodar antes do WPF -->
     <StartupObject>GhstRDP.Program</StartupObject>
-    <!-- Os interop COM gerados do mstscax.dll são .NET Framework; funcionam normalmente no .NET moderno. -->
-    <!-- WFO0003: o DPI fica no manifest de propósito (app é WPF; o WinForms só hospeda o controle RDP). -->
+    <!-- The mstscax interop assemblies target .NET Framework; DPI awareness lives in app.manifest on purpose. -->
     <NoWarn>$(NoWarn);MSB3274;MSB3275;NU1701;WFO0003</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- WPF + WinForms juntos: evita ambiguidade de tipos (Button, Application, Color...). -->
     <Using Remove="System.Windows.Forms" />
     <Using Remove="System.Drawing" />
   </ItemGroup>
@@ -43,7 +40,6 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-    <!-- Instalador (Setup.exe) e atualização automática via GitHub Releases -->
     <PackageReference Include="Velopack" Version="1.2.161" />
   </ItemGroup>
 

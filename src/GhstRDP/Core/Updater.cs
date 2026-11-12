@@ -5,7 +5,7 @@ namespace GhstRDP.Core;
 
 public static class AppInfo
 {
-    /// <summary>Repositório no GitHub de onde saem as versões (Releases). Troque aqui se o repositório mudar.</summary>
+    /// <summary>GitHub repository whose Releases feed the updater.</summary>
     public const string Repo = "GhosttyE/GhstRDP";
 
     public static string RepoUrl => $"https://github.com/{Repo}";
@@ -21,10 +21,7 @@ public static class AppInfo
     }
 }
 
-/// <summary>
-/// Atualização via Velopack + GitHub Releases. Só funciona na versão instalada (Setup.exe);
-/// rodando do build de desenvolvimento ou de um .exe solto, apenas avisa e abre a página.
-/// </summary>
+/// <summary>Velopack updates from GitHub Releases. Only works in an installed copy (Setup.exe).</summary>
 public sealed class Updater
 {
     readonly UpdateManager _manager = new(new GithubSource(AppInfo.RepoUrl, null, false));
@@ -33,7 +30,7 @@ public sealed class Updater
     public bool IsInstalled => _manager.IsInstalled;
     public string? PendingVersion => _pending?.TargetFullRelease.Version.ToString();
 
-    /// <summary>Versão nova disponível no GitHub, ou null.</summary>
+    /// <returns>The newer version available, or null.</returns>
     public async Task<string?> CheckAsync()
     {
         if (!IsInstalled) return null;
@@ -43,21 +40,21 @@ public sealed class Updater
         return info.TargetFullRelease.Version.ToString();
     }
 
-    /// <summary>Baixa (o Velopack confere o hash de cada pacote).</summary>
+    /// <param name="progress">Download progress from 0 to 100.</param>
     public async Task DownloadAsync(Action<int> progress)
     {
         if (_pending == null) throw new InvalidOperationException("Nenhuma atualização encontrada.");
         await _manager.DownloadUpdatesAsync(_pending, progress);
     }
 
-    /// <summary>Aplica quando o app fechar (sem abrir de novo).</summary>
+    /// <summary>Installs the downloaded update after the app exits, without relaunching it.</summary>
     public void ApplyOnExit()
     {
         if (_pending == null) return;
         _manager.WaitExitThenApplyUpdates(_pending.TargetFullRelease, silent: true, restart: false);
     }
 
-    /// <summary>Fecha, aplica e abre a versão nova.</summary>
+    /// <summary>Exits, installs the downloaded update and starts the new version.</summary>
     public void ApplyAndRestart()
     {
         if (_pending == null) return;

@@ -4,9 +4,9 @@ using GhstRDP.Core;
 
 namespace GhstRDP.ViewModels;
 
-public enum SessionState { Conectando, Conectado, Reconectando, Desconectado, Erro }
+public enum SessionState { Connecting, Connected, Reconnecting, Disconnected, Error }
 
-/// <summary>Uma sessão RDP embutida (uma aba). A view (SessionView) controla o ActiveX e reporta o estado aqui.</summary>
+/// <summary>An embedded RDP session shown as a tab. SessionView owns the ActiveX control and reports its state here.</summary>
 public partial class SessionViewModel : ObservableObject
 {
     readonly MainViewModel _owner;
@@ -21,32 +21,31 @@ public partial class SessionViewModel : ObservableObject
     public MainViewModel Owner => _owner;
     public string Title => Server.Name;
 
-    [ObservableProperty] private SessionState _state = SessionState.Conectando;
+    [ObservableProperty] private SessionState _state = SessionState.Connecting;
     [ObservableProperty] private string _statusTitle = "Conectando…";
     [ObservableProperty] private string _statusDetail = "";
     [ObservableProperty] private bool _isSelected;
 
     /// <summary>
-    /// Área do RDP visível. Precisa estar visível ANTES de criar/conectar o controle:
-    /// o ActiveX criado com a janela escondida conecta mas não renderiza (tela preta).
+    /// Whether the RDP area is visible. It must be visible before the control is created and connected:
+    /// an ActiveX created in a hidden window connects but renders a black screen.
     /// </summary>
     [ObservableProperty] private bool _rdpVisible;
 
     public bool ShowRdp => RdpVisible;
     public bool ShowStatusPanel => !RdpVisible;
-    public bool IsBusy => State == SessionState.Conectando;
+    public bool IsBusy => State == SessionState.Connecting;
 
     partial void OnRdpVisibleChanged(bool value)
     {
         OnPropertyChanged(nameof(ShowRdp));
         OnPropertyChanged(nameof(ShowStatusPanel));
     }
-    public bool CanReconnect => State is SessionState.Desconectado or SessionState.Erro;
-    public bool IsError => State == SessionState.Erro;
-    public bool IsLive => State is SessionState.Conectado or SessionState.Reconectando or SessionState.Conectando;
+    public bool CanReconnect => State is SessionState.Disconnected or SessionState.Error;
+    public bool IsError => State == SessionState.Error;
+    public bool IsLive => State is SessionState.Connected or SessionState.Reconnecting or SessionState.Connecting;
 
-    /// <summary>Ícone da aba: carregando enquanto conecta, aviso em erro, monitor no resto.</summary>
-    public bool ShowTabSpinner => State is SessionState.Conectando or SessionState.Reconectando;
+    public bool ShowTabSpinner => State is SessionState.Connecting or SessionState.Reconnecting;
     public bool ShowTabIcon => !ShowTabSpinner && !IsError;
 
     partial void OnStateChanged(SessionState value)
@@ -59,7 +58,7 @@ public partial class SessionViewModel : ObservableObject
         OnPropertyChanged(nameof(IsLive));
     }
 
-    /// <param name="rdpVisible">Só usado em <see cref="SessionState.Conectando"/>; nos outros estados é automático.</param>
+    /// <param name="rdpVisible">Only used while <see cref="SessionState.Connecting"/>; other states set it automatically.</param>
     public void SetState(SessionState state, string title, string detail = "", bool? rdpVisible = null)
     {
         StatusTitle = title;
@@ -67,13 +66,12 @@ public partial class SessionViewModel : ObservableObject
         State = state;
         RdpVisible = state switch
         {
-            SessionState.Conectado or SessionState.Reconectando => true,
-            SessionState.Desconectado or SessionState.Erro => false,
+            SessionState.Connected or SessionState.Reconnecting => true,
+            SessionState.Disconnected or SessionState.Error => false,
             _ => rdpVisible ?? RdpVisible,
         };
     }
 
-    // Pedidos para a view (que é dona do controle RDP)
     public event Action? ReconnectRequested;
     public event Action? CloseRequested;
     public event Action? FullScreenRequested;
@@ -84,12 +82,12 @@ public partial class SessionViewModel : ObservableObject
     [RelayCommand] void Close() => _owner.CloseSession(this);
     [RelayCommand] void FullScreen() => FullScreenRequested?.Invoke();
     [RelayCommand] void Edit() => _owner.EditServer(Server);
-    [RelayCommand] void OpenExternal() => _owner.Connect(Server, OpenMode.Externo);
+    [RelayCommand] void OpenExternal() => _owner.Connect(Server, OpenMode.External);
 
     internal void RequestFocus() => FocusRequested?.Invoke();
     internal void RequestThumbnail() => ThumbnailRequested?.Invoke();
 
-    /// <summary>Pede para a view desconectar; ela chama <see cref="NotifyClosed"/> quando terminar.</summary>
+    /// <summary>Asks the view to disconnect; it calls <see cref="NotifyClosed"/> when done.</summary>
     internal void RequestClose()
     {
         if (CloseRequested == null) NotifyClosed();

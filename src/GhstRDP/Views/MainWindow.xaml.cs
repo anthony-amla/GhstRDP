@@ -36,7 +36,7 @@ public partial class MainWindow : Window
     {
         base.OnSourceInitialized(e);
         NativeWindow.ApplyDarkChrome(this);
-        // Adicionado depois do WindowChrome → recebe as mensagens antes (snap layouts no botão maximizar)
+        // Hooked after WindowChrome so it sees WM_NCHITTEST first (needed for Snap Layouts on the max button).
         HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WndProc);
         UpdateMaximizedState();
     }
@@ -50,8 +50,6 @@ public partial class MainWindow : Window
         Topmost = false;
         Focus();
     }
-
-    // ================= Sessões (cada aba = um SessionView vivo) =================
 
     void Sessions_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
@@ -87,8 +85,6 @@ public partial class MainWindow : Window
         }
     }
 
-    // ================= Barra de título =================
-
     void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
     void Maximize_Click(object sender, RoutedEventArgs e) => ToggleMaximize();
@@ -120,7 +116,6 @@ public partial class MainWindow : Window
     const int WM_NCLBUTTONUP = 0x00A2;
     const int HTMAXBUTTON = 9;
 
-    /// <summary>Faz o Windows 11 mostrar os layouts de encaixe (snap) ao passar o mouse no maximizar.</summary>
     IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         switch (msg)
@@ -176,14 +171,12 @@ public partial class MainWindow : Window
     void SetMaxVisual(string? brushKey) =>
         MaxButton.Background = brushKey == null ? Brushes.Transparent : (Brush)FindResource(brushKey);
 
-    // ================= Atalhos =================
-
     void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
         var ctrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
         if (ctrl && e.Key is Key.K or Key.F)
         {
-            _vm.CurrentPage = Page.Servidores;
+            _vm.CurrentPage = Page.Servers;
             Dispatcher.InvokeAsync(() =>
             {
                 SearchBox.Focus();
@@ -198,17 +191,15 @@ public partial class MainWindow : Window
         }
         else if (ctrl && e.Key == Key.Tab && _vm.Sessions.Count > 1)
         {
-            // Ctrl+Tab / Ctrl+Shift+Tab: troca de aba (quando o foco está no app, não na sessão)
             var back = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
             var index = _vm.SelectedSession == null ? 0 : _vm.Sessions.IndexOf(_vm.SelectedSession);
             var next = (index + (back ? -1 : 1) + _vm.Sessions.Count) % _vm.Sessions.Count;
             _vm.SelectedSession = _vm.Sessions[next];
-            _vm.CurrentPage = Page.Sessoes;
+            _vm.CurrentPage = Page.Sessions;
             e.Handled = true;
         }
     }
 
-    /// <summary>Botão do meio do mouse fecha a aba, como no navegador.</summary>
     void SessionTabs_PreviewMouseUp(object sender, MouseButtonEventArgs e)
     {
         if (e.ChangedButton != MouseButton.Middle) return;
@@ -232,11 +223,9 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    // ================= Fechar com sessões abertas =================
-
     bool _closeFlowRunning;
 
-    /// <summary>Desligamento/logoff do Windows: fecha sem perguntar.</summary>
+    /// <summary>Lets the next close go through without confirmation (used on Windows shutdown/logoff).</summary>
     public void AllowCloseNow()
     {
         SavePlacement();
@@ -247,8 +236,7 @@ public partial class MainWindow : Window
     {
         if (_allowClose) return;
 
-        // Nunca abre diálogo dentro do evento Closing (o WPF não deixa usar uma janela "fechando" como dona).
-        // Cancela e roda o fluxo logo em seguida.
+        // WPF can't use a closing window as a dialog owner, so cancel and run the flow afterwards.
         e.Cancel = true;
         if (_closeFlowRunning) return;
         _closeFlowRunning = true;
@@ -282,7 +270,6 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // Desconecta tudo de forma limpa e fecha quando terminar (ou após 5 s)
             _vm.SessionsChanged += () =>
             {
                 if (_vm.Sessions.Count == 0) ForceClose();
@@ -299,7 +286,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Log.Error("Falha no fluxo de fechamento; fechando mesmo assim", ex);
+            Log.Error("Close flow failed; closing anyway", ex);
             ForceClose();
         }
     }
@@ -311,13 +298,11 @@ public partial class MainWindow : Window
         foreach (var view in _sessionViews.Values)
         {
             try { view.Dispose(); }
-            catch (Exception ex) { Log.Warn("Falha ao descartar sessão no fechamento", ex); }
+            catch (Exception ex) { Log.Warn("Failed to dispose session on close", ex); }
         }
         _sessionViews.Clear();
         Dispatcher.BeginInvoke(Close);
     }
-
-    // ================= Posição da janela =================
 
     void RestorePlacement()
     {
