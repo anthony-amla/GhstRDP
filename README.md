@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/GhosttyE/GhstRDP/releases/latest"><b>Baixar para Windows</b></a>
+  <a href="https://github.com/anthony-amla/GhstRDP/releases/latest"><b>Baixar para Windows</b></a>
 </p>
 
 <p align="center">
@@ -60,7 +60,7 @@ O cofre protege contra quem usa o seu PC ou olha a sua tela. Ele não protege co
 
 ## Instalar
 
-Baixe o `GhstRDPApp-win-Setup.exe` na [última versão](https://github.com/GhosttyE/GhstRDP/releases/latest) e abra.
+Baixe o `GhstRDPApp-win-Setup.exe` na [última versão](https://github.com/anthony-amla/GhstRDP/releases/latest) e abra.
 
 Ele instala só para o seu usuário, sem pedir administrador e sem precisar do .NET. Depois disso o app se atualiza sozinho quando sai versão nova; se preferir controlar, dá para desligar em Configurações.
 

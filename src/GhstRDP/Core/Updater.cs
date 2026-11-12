@@ -6,7 +6,7 @@ namespace GhstRDP.Core;
 public static class AppInfo
 {
     /// <summary>GitHub repository whose Releases feed the updater.</summary>
-    public const string Repo = "GhosttyE/GhstRDP";
+    public const string Repo = "anthony-amla/GhstRDP";
 
     public static string RepoUrl => $"https://github.com/{Repo}";
     public static string ReleasesPage => $"{RepoUrl}/releases";

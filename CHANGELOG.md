@@ -7,6 +7,7 @@ Cada versão nova entra num PR que sobe o `<Version>` em `src/GhstRDP/GhstRDP.cs
 ## [Não lançado]
 
 ### Corrigido
+- A atualização automática procurava versões no repositório errado. Quem tem a 1.0.0 precisa baixar esta versão uma vez pelo site; depois disso ela se atualiza sozinha.
 - Fechar uma aba de sessão não derruba mais o app em alguns servidores.
 - Se o app não conseguir abrir, ele avisa e fecha em vez de ficar rodando escondido.
 - O cofre não perde o que você digitou se trancar sozinho com o editor aberto.
@@ -27,5 +28,5 @@ Cada versão nova entra num PR que sobe o `<Version>` em `src/GhstRDP/GhstRDP.cs
 - Modo sigiloso que borra os IPs e as prévias.
 - Instalador e atualização automática pelo GitHub.
 
-[Não lançado]: https://github.com/GhosttyE/GhstRDP/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/GhosttyE/GhstRDP/releases/tag/v1.0.0
+[Não lançado]: https://github.com/anthony-amla/GhstRDP/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/anthony-amla/GhstRDP/releases/tag/v1.0.0
