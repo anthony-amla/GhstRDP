@@ -54,6 +54,9 @@ Não existe conta, servidor nem telemetria. Tudo fica no seu usuário do Windows
 - **Senhas dos servidores:** criptografadas com a proteção do próprio Windows (DPAPI). Só o seu usuário, neste PC, consegue abrir.
 - **Cofre com PIN:** o PIN nunca é salvo. Ele gera a chave com PBKDF2-SHA256 (310 mil rodadas), cada senha usa AES-256-GCM e por cima ainda vai o DPAPI.
 - **Contra tentativas:** depois de 5 PINs errados o cofre trava por um tempo, e ele fecha sozinho quando fica parado.
+- **Modo mstsc:** para o mstsc entrar sem pedir senha, o login fica salvo no Gerenciador de Credenciais do Windows (`TERMSRV/host`). Ele é removido quando você apaga o servidor ou troca o login.
+
+O cofre protege contra quem usa o seu PC ou olha a sua tela. Ele não protege contra um programa malicioso rodando no seu próprio usuário do Windows; nesse caso, nenhum gerenciador de senhas local protege.
 
 ## Instalar
 
