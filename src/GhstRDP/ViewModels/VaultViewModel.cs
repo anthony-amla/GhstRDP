@@ -128,6 +128,98 @@ public partial class VaultViewModel : ObservableObject
 
     [RelayCommand] void Add() => _main.EditVaultEntry(null, null);
 
+    [RelayCommand]
+    void Export()
+    {
+        if (!_main.EnsureVaultUnlocked()) return;
+        var export = new ExportPasswordsViewModel(BuildExportGroups());
+        if (!export.HasGroups)
+        {
+            _main.ShowToast("Nada para exportar ainda");
+            return;
+        }
+        Dialogs.ExportPasswords(Application.Current.MainWindow, export, _main);
+    }
+
+    [RelayCommand]
+    void Import()
+    {
+        if (!_main.EnsureVaultUnlocked()) return;
+        var import = new ImportPasswordsViewModel(_main);
+        if (!Dialogs.ImportPasswords(Application.Current.MainWindow, import)) return;
+        if (!_main.EnsureVaultUnlocked()) return;
+
+        try
+        {
+            var (servers, entries, kept) = _main.ImportPasswords(import.SelectedMachines(), import.ReplaceExisting);
+            var parts = new List<string>();
+            if (servers > 0) parts.Add($"{servers} servidor(es)");
+            if (entries > 0) parts.Add($"{entries} senha(s)");
+            var message = parts.Count == 0 ? "Nada novo para importar" : "Importado: " + string.Join(" e ", parts);
+            if (kept > 0) message += $" · {kept} já existia(m)";
+            _main.ShowToast(message);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to import passwords", ex);
+            Dialogs.Error(Application.Current.MainWindow, "Não foi possível importar", ex.Message);
+        }
+    }
+
+    /// <summary>Every server and vault machine, with all items checked, for the export dialog.</summary>
+    List<TransferGroupViewModel> BuildExportGroups()
+    {
+        var groups = new List<TransferGroupViewModel>();
+        var entries = _vault.Data.Entries;
+        var serverIds = new HashSet<Guid>();
+
+        foreach (var server in _main.Servers.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            serverIds.Add(server.Id);
+            var record = server.Record;
+            var items = new List<TransferItemViewModel>
+            {
+                new($"Servidor {server.DisplayAddress}", server.UserDisplay)
+                {
+                    IsServerLogin = true,
+                    BuildServer = () => new TransferServer
+                    {
+                        Host = record.Host.Trim(),
+                        Port = record.Port,
+                        Username = record.Username,
+                        Domain = record.Domain,
+                        Password = Secrets.Unprotect(record.PasswordProtected),
+                        Kind = record.Kind,
+                    },
+                },
+            };
+            items.AddRange(entries.Where(e => e.ServerId == server.Id).OrderBy(e => e.Label, StringComparer.OrdinalIgnoreCase).Select(ExportItem));
+            groups.Add(new TransferGroupViewModel(server.Name, server.Group.Trim(),
+                server.HasGroup ? server.TagBackground : null, server.HasGroup ? server.TagForeground : null, items));
+        }
+
+        foreach (var machine in entries.Where(e => e.ServerId == null || !serverIds.Contains(e.ServerId.Value))
+                     .GroupBy(e => string.IsNullOrWhiteSpace(e.Machine) ? "Sem máquina" : e.Machine.Trim(), StringComparer.OrdinalIgnoreCase)
+                     .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            groups.Add(new TransferGroupViewModel(machine.Key, "", null, null,
+                machine.OrderBy(e => e.Label, StringComparer.OrdinalIgnoreCase).Select(ExportItem).ToList()));
+        }
+        return groups;
+    }
+
+    TransferItemViewModel ExportItem(VaultEntry entry) =>
+        new(string.IsNullOrWhiteSpace(entry.Label) ? "Senha" : entry.Label, entry.Username)
+        {
+            BuildEntry = () => new TransferEntry
+            {
+                Label = entry.Label,
+                Username = entry.Username,
+                Password = _vault.Unprotect(entry.Secret),
+                Notes = entry.Notes,
+            },
+        };
+
     /// <summary>
     /// Rebuilds the groups: one per server (RDP login plus linked vault entries) and one per
     /// free-text machine name, filtered by <see cref="Search"/>.

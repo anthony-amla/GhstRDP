@@ -45,6 +45,21 @@ public static class Dialogs
         return window.ShowDialog() == true;
     }
 
+    public static void ExportPasswords(Window? owner, ExportPasswordsViewModel vm, MainViewModel main)
+    {
+        var window = new ExportPasswordsWindow(vm, main);
+        SetOwner(window, owner);
+        window.ShowDialog();
+    }
+
+    /// <returns>True when the user confirmed the import; the selection is in <paramref name="vm"/>.</returns>
+    public static bool ImportPasswords(Window? owner, ImportPasswordsViewModel vm)
+    {
+        var window = new ImportPasswordsWindow(vm);
+        SetOwner(window, owner);
+        return window.ShowDialog() == true;
+    }
+
     static void SetOwner(Window dialog, Window? owner)
     {
         try

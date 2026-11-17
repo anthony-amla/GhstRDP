@@ -283,6 +283,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// which is persisted so it stays stable.
     /// </summary>
     /// <returns>Index into <see cref="TagPalette"/>, or -1 when the client name is empty.</returns>
+    /// <returns>The client's saved palette index, or its hash color when it was never seen, without saving anything.</returns>
+    public int PeekClientColorIndex(string client)
+    {
+        var key = client.Trim().ToLowerInvariant();
+        return Settings.ClientColors.TryGetValue(key, out var index) ? index : TagPalette.HashIndex(key);
+    }
+
     public int ClientColorIndex(string? client)
     {
         var key = (client ?? "").Trim().ToLowerInvariant();
@@ -506,6 +513,107 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (sameLogin) return;
         if (Servers.Any(s => s.Id != current.Id && string.Equals(s.Host.Trim(), previous.Host.Trim(), StringComparison.OrdinalIgnoreCase))) return;
         CredentialStore.DeleteRdp(previous.Host);
+    }
+
+    /// <returns>The local server an imported machine maps to: same host and port, or same name when it has no server.</returns>
+    public ServerItemViewModel? FindImportTarget(TransferMachine machine) =>
+        machine.Server is { } server
+            ? Servers.FirstOrDefault(s => SameText(s.Host, server.Host) && s.Port == server.Port)
+            : Servers.FirstOrDefault(s => SameText(s.Name, machine.Name));
+
+    /// <returns>The vault entry with the same label and user on that server or machine, if any.</returns>
+    public VaultEntry? FindVaultEntry(Guid? serverId, string machine, TransferEntry entry) =>
+        _vaultService.Data.Entries.FirstOrDefault(e =>
+            (serverId != null ? e.ServerId == serverId : e.ServerId == null && SameText(e.Machine, machine))
+            && SameText(e.Label, entry.Label)
+            && SameText(e.Username, entry.Username));
+
+    static bool SameText(string? a, string? b) =>
+        string.Equals((a ?? "").Trim(), (b ?? "").Trim(), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Adds imported servers and vault entries. The vault must be unlocked.</summary>
+    /// <param name="replaceExisting">Overwrite logins and entries that already exist instead of keeping the local ones.</param>
+    /// <returns>How many servers and vault entries were added or replaced, and how many were kept as they were.</returns>
+    public (int Servers, int Entries, int Kept) ImportPasswords(IReadOnlyList<TransferMachine> machines, bool replaceExisting)
+    {
+        int servers = 0, entries = 0, kept = 0;
+
+        foreach (var machine in machines)
+        {
+            var target = FindImportTarget(machine);
+
+            if (machine.Server is { } server)
+            {
+                if (target == null)
+                {
+                    var record = new ServerRecord
+                    {
+                        Name = string.IsNullOrWhiteSpace(machine.Name) ? server.Host : machine.Name.Trim(),
+                        Host = server.Host.Trim(),
+                        Port = server.Port,
+                        Username = server.Username,
+                        Domain = server.Domain,
+                        PasswordProtected = Secrets.Protect(server.Password),
+                        Kind = server.Kind,
+                        Group = machine.Client.Trim(),
+                    };
+                    _store.Data.Servers.Add(record);
+                    target = new ServerItemViewModel(record, this);
+                    Servers.Add(target);
+                    if (Settings.StatusCheck) _ = _status.CheckAsync(target);
+                    servers++;
+                }
+                else if (replaceExisting)
+                {
+                    var previous = target.Record;
+                    var record = previous.Clone();
+                    record.Username = server.Username;
+                    record.Domain = server.Domain;
+                    record.PasswordProtected = Secrets.Protect(server.Password);
+                    var idx = _store.Data.Servers.FindIndex(s => s.Id == record.Id);
+                    if (idx >= 0) _store.Data.Servers[idx] = record;
+                    target.Update(record);
+                    DropStaleCredential(previous, record);
+                    servers++;
+                }
+                else
+                {
+                    kept++;
+                }
+            }
+
+            foreach (var imported in machine.Entries)
+            {
+                var existing = FindVaultEntry(target?.Id, machine.Name, imported);
+                if (existing != null && !replaceExisting)
+                {
+                    kept++;
+                    continue;
+                }
+
+                var secret = string.IsNullOrEmpty(imported.Password) ? null : _vaultService.Protect(imported.Password);
+                var entry = existing ?? new VaultEntry();
+                entry.ServerId = target?.Id;
+                entry.Machine = target?.Name ?? machine.Name.Trim();
+                entry.Label = imported.Label.Trim();
+                entry.Username = imported.Username.Trim();
+                entry.Secret = secret;
+                entry.Notes = imported.Notes.Trim();
+                entry.UpdatedAt = DateTime.Now;
+                if (existing == null) _vaultService.Data.Entries.Add(entry);
+                entries++;
+            }
+        }
+
+        if (servers > 0)
+        {
+            Save();
+            RebuildChips();
+            RefreshDerived();
+        }
+        if (entries > 0) SaveVault();
+        Vault.Refresh();
+        return (servers, entries, kept);
     }
 
     void ApplyBanner(ServerRecord record, EditServerViewModel editor)

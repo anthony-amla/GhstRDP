@@ -6,6 +6,11 @@ Cada versão nova entra num PR que sobe o `<Version>` em `src/GhstRDP/GhstRDP.cs
 
 ## [Não lançado]
 
+### Adicionado
+- Exportar e importar senhas na aba Senhas, escolhendo máquina por máquina o que levar.
+- Exportação como código criptografado com uma senha, para importar em outro Ghst RDP, ou como texto pronto para o Discord, com endereços e senhas em spoiler.
+- A importação mostra uma prévia do que é novo e do que já existe, e cria os servidores que faltam.
+
 ### Corrigido
 - A atualização automática procurava versões no repositório errado. Quem tem a 1.0.0 precisa baixar esta versão uma vez pelo site; depois disso ela se atualiza sozinha.
 - Fechar uma aba de sessão não derruba mais o app em alguns servidores.

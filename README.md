@@ -37,6 +37,8 @@ Ele usa o mesmo motor de conexão da Área de Trabalho Remota do Windows (`mstsc
 
 **Cofre de senhas.** Guarde as outras credenciais de cada máquina (banco, painel, SQL) protegidas por um PIN.
 
+**Exportar e importar.** Escolha o que levar e gere um código criptografado com senha para outra pessoa importar no Ghst RDP dela, ou um texto pronto para o Discord, com IPs e senhas em spoiler.
+
 <p align="center">
   <img src="docs/screens/senhas.webp" alt="Cofre de senhas em cards por máquina" />
 </p>

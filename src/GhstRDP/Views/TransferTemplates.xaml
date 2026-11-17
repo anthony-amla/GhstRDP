@@ -1,0 +1,42 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:vm="clr-namespace:GhstRDP.ViewModels">
+
+    <DataTemplate x:Key="TransferGroupTemplate" DataType="{x:Type vm:TransferGroupViewModel}">
+        <StackPanel Margin="0,0,0,12">
+            <CheckBox IsChecked="{Binding IsChecked}" Margin="0,0,0,6">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"
+                               TextTrimming="CharacterEllipsis" MaxWidth="260" />
+                    <Border Style="{StaticResource TagChip}" Background="{Binding TagBackground}"
+                            Visibility="{Binding HasClient, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding Client}" Style="{StaticResource TagChipText}" Foreground="{Binding TagForeground}" />
+                    </Border>
+                </StackPanel>
+            </CheckBox>
+
+            <ItemsControl ItemsSource="{Binding Items}" Margin="28,0,0,0">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:TransferItemViewModel}">
+                        <CheckBox IsChecked="{Binding IsChecked}" Margin="0,0,0,6">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                                    <TextBlock Text="{Binding Username}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="10,0,0,0"
+                                               Visibility="{Binding HasUsername, Converter={StaticResource BoolToVis}}" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="1" Text="{Binding Status}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="16,0,0,0"
+                                           Visibility="{Binding Status, Converter={StaticResource TextToVis}}" />
+                            </Grid>
+                        </CheckBox>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </DataTemplate>
+
+</ResourceDictionary>
