@@ -6,6 +6,8 @@ Cada versão nova entra num PR que sobe o `<Version>` em `src/GhstRDP/GhstRDP.cs
 
 ## [Não lançado]
 
+## [1.1.0] - 2026-11-17
+
 ### Adicionado
 - Exportar e importar senhas na aba Senhas, escolhendo máquina por máquina o que levar.
 - Exportação como código criptografado com uma senha, para importar em outro Ghst RDP, ou como texto pronto para o Discord, com endereços e senhas em spoiler.
@@ -33,5 +35,6 @@ Cada versão nova entra num PR que sobe o `<Version>` em `src/GhstRDP/GhstRDP.cs
 - Modo sigiloso que borra os IPs e as prévias.
 - Instalador e atualização automática pelo GitHub.
 
-[Não lançado]: https://github.com/anthony-amla/GhstRDP/compare/v1.0.0...HEAD
+[Não lançado]: https://github.com/anthony-amla/GhstRDP/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/anthony-amla/GhstRDP/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/anthony-amla/GhstRDP/releases/tag/v1.0.0
