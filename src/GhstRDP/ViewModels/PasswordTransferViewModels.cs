@@ -89,7 +89,6 @@ public partial class ExportPasswordsViewModel : ObservableObject
                 if (e.PropertyName != nameof(TransferItemViewModel.IsChecked)) return;
                 Notice = "";
                 OnPropertyChanged(nameof(SelectedCount));
-                OnPropertyChanged(nameof(Footer));
             };
     }
 
@@ -101,10 +100,6 @@ public partial class ExportPasswordsViewModel : ObservableObject
     [ObservableProperty] private string _error = "";
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _notice = "";
-
-    public string Footer => Notice.Length > 0 ? Notice : $"{SelectedCount} selecionado(s)";
-
-    partial void OnNoticeChanged(string value) => OnPropertyChanged(nameof(Footer));
 
     public string CodePassword { get; set; } = "";
     public string CodePasswordConfirm { get; set; } = "";

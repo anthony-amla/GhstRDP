@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Threading;
 using GhstRDP.ViewModels;
@@ -35,6 +36,25 @@ public partial class VaultView : UserControl
             if (Vm.State == VaultState.Setup) NewPin.Focus();
             else if (Vm.State == VaultState.Locked) UnlockPin.Focus();
         }, DispatcherPriority.Input);
+    }
+
+    void MoreButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement element || element.ContextMenu is not { } menu) return;
+        menu.DataContext = element.DataContext;
+        menu.PlacementTarget = element;
+        menu.Placement = PlacementMode.Bottom;
+        menu.HorizontalOffset = 0;
+        menu.Opened -= AlignMenuRight;
+        menu.Opened += AlignMenuRight;
+        menu.IsOpen = true;
+        e.Handled = true;
+    }
+
+    static void AlignMenuRight(object sender, RoutedEventArgs e)
+    {
+        if (sender is ContextMenu { PlacementTarget: FrameworkElement target } menu)
+            menu.HorizontalOffset = target.ActualWidth - menu.ActualWidth;
     }
 
     async void Setup_Click(object sender, RoutedEventArgs e) => await Setup();

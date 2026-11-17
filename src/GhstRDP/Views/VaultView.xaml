@@ -59,20 +59,6 @@
             <Grid Margin="0,0,16,0">
                 <TextBlock Text="Senhas" Style="{StaticResource Text.Title}" />
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <Button Style="{StaticResource Btn.Secondary}" Command="{Binding ImportCommand}" Margin="0,0,8,0" AutomationProperties.Name="Importar senhas"
-                            ToolTip="Importar um código exportado por outro Ghst RDP">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE896;" FontFamily="{StaticResource IconFont}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                            <TextBlock Text="Importar" />
-                        </StackPanel>
-                    </Button>
-                    <Button Style="{StaticResource Btn.Secondary}" Command="{Binding ExportCommand}" Margin="0,0,8,0" AutomationProperties.Name="Exportar senhas"
-                            ToolTip="Exportar como código para importar ou como texto para o Discord">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE898;" FontFamily="{StaticResource IconFont}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
-                            <TextBlock Text="Exportar" />
-                        </StackPanel>
-                    </Button>
                     <Button Style="{StaticResource Btn.Secondary}" Command="{Binding LockCommand}" Margin="0,0,8,0" AutomationProperties.Name="Bloquear cofre"
                             ToolTip="Fecha o cofre (fecha sozinho após 5 min sem uso)">
                         <StackPanel Orientation="Horizontal">
@@ -85,6 +71,16 @@
                             <TextBlock Text="&#xE710;" FontFamily="{StaticResource IconFont}" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
                             <TextBlock Text="Adicionar senha" />
                         </StackPanel>
+                    </Button>
+                    <Button Style="{StaticResource Btn.Secondary}" Content="&#xE712;" FontFamily="{StaticResource IconFont}" FontSize="14"
+                            Width="34" Padding="0" Margin="8,0,0,0" Click="MoreButton_Click"
+                            AutomationProperties.Name="Mais opções" ToolTip="Mais opções">
+                        <Button.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Importar senhas…" Tag="&#xE896;" Command="{Binding ImportCommand}" />
+                                <MenuItem Header="Exportar senhas…" Tag="&#xE898;" Command="{Binding ExportCommand}" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
                     </Button>
                 </StackPanel>
             </Grid>
